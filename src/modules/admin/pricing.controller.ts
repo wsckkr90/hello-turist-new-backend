@@ -14,7 +14,7 @@ function numberField(value: unknown, field: string): number | undefined {
 function vehicleRatesField(value: unknown): Partial<Record<(typeof VEHICLE_TYPES)[number], Partial<VehicleRate>>> | undefined {
   if (value === undefined) return undefined;
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("INVALID_VEHICLE_RATES");
-  const result: Partial<Record<(typeof VEHICLE_TYPES)[number], VehicleRate>> = {};
+  const result: Partial<Record<(typeof VEHICLE_TYPES)[number], Partial<VehicleRate>>> = {};
   for (const type of VEHICLE_TYPES) {
     const source = (value as Record<string, unknown>)[type];
     if (source === undefined) continue;
