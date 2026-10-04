@@ -63,7 +63,7 @@ function parsePricing(value: unknown): RidePricingConfig {
   if (rawVehicleRates !== undefined) {
     if (!rawVehicleRates || typeof rawVehicleRates !== "object" || Array.isArray(rawVehicleRates)) throw new Error("RIDE_PRICING_CONFIG_INVALID");
     const entries = rawVehicleRates as Record<string, unknown>;
-    for (const type of VEHICLE_TYPES) if (entries[type] !== undefined) vehicleRates[type] = parseRate(entries[type], legacy);
+    for (const type of VEHICLE_TYPES) vehicleRates[type] = parseRate(entries[type], legacy);
   }
   return { ...legacy, currency: "INR", vehicleRates };
 }
@@ -74,13 +74,23 @@ export async function getRidePricing(): Promise<RidePricingConfig> {
   return { ...parsePricing(row.value), updatedAt: row.updatedAt };
 }
 
-export async function updateRidePricing(input: Partial<RidePricingConfig>): Promise<RidePricingConfig> {
+export async function updateRidePricing(input: { baseFare?: number; perKm?: number; minimumFare?: number; vehicleRates?: Partial<Record<VehicleType, Partial<VehicleRate>>> }): Promise<RidePricingConfig> {
   const current = await getRidePricing();
+  const vehicleRates: Partial<Record<VehicleType, VehicleRate>> = {};
+  for (const type of VEHICLE_TYPES) {
+    const currentRate = current.vehicleRates[type] ?? {
+      baseFare: current.baseFare,
+      perKm: current.perKm,
+      minimumFare: current.minimumFare,
+    };
+    const incoming = input.vehicleRates?.[type];
+    vehicleRates[type] = incoming ? parseRate({ ...currentRate, ...incoming }, currentRate) : currentRate;
+  }
   const next = parsePricing({
     baseFare: input.baseFare ?? current.baseFare,
     perKm: input.perKm ?? current.perKm,
     minimumFare: input.minimumFare ?? current.minimumFare,
-    vehicleRates: input.vehicleRates ?? current.vehicleRates,
+    vehicleRates,
   });
   const row = await prisma.appSetting.upsert({
     where: { key: "RIDE_PRICING" },
