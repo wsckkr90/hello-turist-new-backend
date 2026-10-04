@@ -238,6 +238,7 @@ model Ride {
   dropoffLatitude    Decimal           @map("dropoff_latitude") @db.Decimal(10, 7)
   dropoffLongitude   Decimal           @map("dropoff_longitude") @db.Decimal(10, 7)
   serviceType        String            @default("RIDE_ONLY") @map("service_type")
+  vehicleType        VehicleType       @default(CAR) @map("vehicle_type")
   purpose            String?
   paymentMethod      String            @default("RAZORPAY") @map("payment_method")
   scheduledAt        DateTime?         @map("scheduled_at")
