@@ -49,11 +49,26 @@ Base path: `/api/v1`
 - GET `/rides/:id/events`
 - GET `/rides/history`
 
-### Ride service types
+### Ride booking: destinations and vehicle selection
 `POST /rides` accepts:
+- `destinations`: optional array of up to 8 intermediate stops; each stop contains `name`, optional `address`, `latitude`, and `longitude`.
+- `vehicleType`: `CAR`, `SUV`, `SEDAN`, `HATCHBACK`, `VAN`, `BUS`, or `OTHER`. Defaults to `CAR`.
 - `serviceType`: `RIDE_ONLY`, `GUIDE_ONLY`, or `RIDE_AND_GUIDE`
 - `purpose`: optional rider-selected trip purpose
 - `paymentMethod`: `RAZORPAY`, `UPI`, `CARD`, `CASH`, or `WALLET`
+
+`POST /rides/quote` and `POST /rides/fare-quote` accept the same pickup/dropoff coordinates plus `destinations` and `vehicleType`. Fare calculation routes every leg in order (pickup → stop 1 → ... → stop N → dropoff), sums distance/duration, and applies the selected vehicle's base fare, per-km rate, and minimum fare.
+
+The admin ride-pricing setting supports `vehicleRates` for each vehicle type while preserving the legacy `baseFare`, `perKm`, and `minimumFare` fallback.
+
+### Driver vehicle selection
+Driver vehicle APIs:
+- POST `/providers/driver/vehicles`
+- GET `/providers/driver/vehicles`
+- PATCH `/providers/driver/vehicles/:id`
+- DELETE `/providers/driver/vehicles/:id`
+
+Automatic and manual ride dispatch only assigns a driver who has an active vehicle matching the rider-selected `vehicleType`.
 
 ### Recovery
 - `interrupt` is authenticated and allowed for the rider, current assigned driver, or admin while the ride is `IN_PROGRESS`.
