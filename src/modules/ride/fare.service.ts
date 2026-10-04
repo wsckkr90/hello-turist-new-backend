@@ -35,7 +35,15 @@ const DEFAULT_PRICING: RidePricingConfig = {
   perKm: 5,
   minimumFare: 20,
   currency: "INR",
-  vehicleRates: {},
+  vehicleRates: {
+    CAR: { baseFare: 20, perKm: 5, minimumFare: 20 },
+    SUV: { baseFare: 20, perKm: 5, minimumFare: 20 },
+    SEDAN: { baseFare: 20, perKm: 5, minimumFare: 20 },
+    HATCHBACK: { baseFare: 20, perKm: 5, minimumFare: 20 },
+    VAN: { baseFare: 20, perKm: 5, minimumFare: 20 },
+    BUS: { baseFare: 20, perKm: 5, minimumFare: 20 },
+    OTHER: { baseFare: 20, perKm: 5, minimumFare: 20 },
+  },
 };
 
 function money(value: number): number {
@@ -60,11 +68,11 @@ function parsePricing(value: unknown): RidePricingConfig {
   const legacy = parseRate(source, DEFAULT_PRICING);
   const rawVehicleRates = source.vehicleRates;
   const vehicleRates: Partial<Record<VehicleType, VehicleRate>> = {};
-  if (rawVehicleRates !== undefined) {
-    if (!rawVehicleRates || typeof rawVehicleRates !== "object" || Array.isArray(rawVehicleRates)) throw new Error("RIDE_PRICING_CONFIG_INVALID");
-    const entries = rawVehicleRates as Record<string, unknown>;
-    for (const type of VEHICLE_TYPES) vehicleRates[type] = parseRate(entries[type], legacy);
+  if (rawVehicleRates !== undefined && (!rawVehicleRates || typeof rawVehicleRates !== "object" || Array.isArray(rawVehicleRates))) {
+    throw new Error("RIDE_PRICING_CONFIG_INVALID");
   }
+  const entries = (rawVehicleRates ?? {}) as Record<string, unknown>;
+  for (const type of VEHICLE_TYPES) vehicleRates[type] = parseRate(entries[type], legacy);
   return { ...legacy, currency: "INR", vehicleRates };
 }
 
