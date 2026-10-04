@@ -1,12 +1,15 @@
 import { z } from "zod";
 
-const coordinate = z.number().min(-180).max(180);
-const routeStopSchema = z.object({
+export const vehicleTypeSchema = z.enum(["CAR", "SUV", "SEDAN", "HATCHBACK", "VAN", "BUS", "OTHER"]);
+
+export const routeStopSchema = z.object({
   name: z.string().trim().min(1).max(200),
   address: z.string().trim().max(500).optional(),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
 });
+
+const coordinate = z.number().min(-180).max(180);
 
 export const createRideSchema = z.object({
   pickupAddress: z.string().trim().min(2).max(500),
@@ -15,7 +18,8 @@ export const createRideSchema = z.object({
   dropoffAddress: z.string().trim().min(2).max(500),
   dropoffLatitude: coordinate.refine((v) => v >= -90 && v <= 90, "Invalid latitude"),
   dropoffLongitude: coordinate,
-  destinations: z.array(routeStopSchema).max(8).optional(),
+  destinations: z.array(routeStopSchema).max(8).default([]),
+  vehicleType: vehicleTypeSchema.default("CAR"),
   serviceType: z.enum(["RIDE_ONLY", "GUIDE_ONLY", "RIDE_AND_GUIDE"]).default("RIDE_ONLY"),
   purpose: z.string().trim().min(2).max(120).optional(),
   paymentMethod: z.enum(["RAZORPAY", "UPI", "CARD", "CASH", "WALLET"]).default("RAZORPAY"),
@@ -34,3 +38,4 @@ export type CancelRideInput = z.infer<typeof cancelRideSchema>;
 export type AssignRideInput = z.infer<typeof assignRideSchema>;
 export type LocationInput = z.infer<typeof locationSchema>;
 export type RideEventInput = z.infer<typeof rideEventSchema>;
+export type VehicleType = z.infer<typeof vehicleTypeSchema>;
