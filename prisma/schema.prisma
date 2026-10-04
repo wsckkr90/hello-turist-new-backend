@@ -259,6 +259,7 @@ model Ride {
   @@index([status])
   @@index([scheduledAt])
   @@index([serviceType, status])
+  @@index([vehicleType, status])
   @@map("rides")
 }
 
