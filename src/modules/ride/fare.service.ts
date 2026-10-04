@@ -1,44 +1,71 @@
 import { prisma } from "../../core/prisma";
 import { GooglePlaceRouteAdapter } from "../place-route/place-route.adapter";
+import type { VehicleType } from "./ride.schema";
 
-export type RidePricingConfig = {
+export type Coordinate = { latitude: number; longitude: number };
+export type FareStop = Coordinate & { name?: string; address?: string };
+
+export type VehicleRate = {
   baseFare: number;
   perKm: number;
   minimumFare: number;
+};
+
+export type RidePricingConfig = VehicleRate & {
   currency: "INR";
+  vehicleRates: Partial<Record<VehicleType, VehicleRate>>;
   updatedAt?: Date;
 };
 
 export type FareQuote = {
   currency: "INR";
+  vehicleType: VehicleType;
   distanceMeters: number;
   durationSeconds: number;
   baseFare: number;
   distanceFare: number;
   totalFare: number;
+  legs: Array<{ distanceMeters: number; durationSeconds: number }>;
 };
+
+const VEHICLE_TYPES: VehicleType[] = ["CAR", "SUV", "SEDAN", "HATCHBACK", "VAN", "BUS", "OTHER"];
 
 const DEFAULT_PRICING: RidePricingConfig = {
   baseFare: 20,
   perKm: 5,
   minimumFare: 20,
   currency: "INR",
+  vehicleRates: {},
 };
 
 function money(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-function parsePricing(value: unknown): RidePricingConfig {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("RIDE_PRICING_CONFIG_MISSING");
+function parseRate(value: unknown, fallback: VehicleRate): VehicleRate {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("RIDE_PRICING_CONFIG_INVALID");
   const source = value as Record<string, unknown>;
-  const baseFare = Number(source.baseFare);
-  const perKm = Number(source.perKm);
-  const minimumFare = Number(source.minimumFare);
+  const baseFare = Number(source.baseFare ?? fallback.baseFare);
+  const perKm = Number(source.perKm ?? fallback.perKm);
+  const minimumFare = Number(source.minimumFare ?? fallback.minimumFare);
   if (![baseFare, perKm, minimumFare].every(Number.isFinite) || baseFare < 0 || perKm < 0 || minimumFare < 0) {
     throw new Error("RIDE_PRICING_CONFIG_INVALID");
   }
-  return { baseFare, perKm, minimumFare, currency: "INR" };
+  return { baseFare, perKm, minimumFare };
+}
+
+function parsePricing(value: unknown): RidePricingConfig {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("RIDE_PRICING_CONFIG_MISSING");
+  const source = value as Record<string, unknown>;
+  const legacy = parseRate(source, DEFAULT_PRICING);
+  const rawVehicleRates = source.vehicleRates;
+  const vehicleRates: Partial<Record<VehicleType, VehicleRate>> = {};
+  if (rawVehicleRates !== undefined) {
+    if (!rawVehicleRates || typeof rawVehicleRates !== "object" || Array.isArray(rawVehicleRates)) throw new Error("RIDE_PRICING_CONFIG_INVALID");
+    const entries = rawVehicleRates as Record<string, unknown>;
+    for (const type of VEHICLE_TYPES) if (entries[type] !== undefined) vehicleRates[type] = parseRate(entries[type], legacy);
+  }
+  return { ...legacy, currency: "INR", vehicleRates };
 }
 
 export async function getRidePricing(): Promise<RidePricingConfig> {
@@ -53,6 +80,7 @@ export async function updateRidePricing(input: Partial<RidePricingConfig>): Prom
     baseFare: input.baseFare ?? current.baseFare,
     perKm: input.perKm ?? current.perKm,
     minimumFare: input.minimumFare ?? current.minimumFare,
+    vehicleRates: input.vehicleRates ?? current.vehicleRates,
   });
   const row = await prisma.appSetting.upsert({
     where: { key: "RIDE_PRICING" },
@@ -62,17 +90,43 @@ export async function updateRidePricing(input: Partial<RidePricingConfig>): Prom
   return { ...parsePricing(row.value), updatedAt: row.updatedAt };
 }
 
-export async function calculateFare(origin: { latitude: number; longitude: number }, destination: { latitude: number; longitude: number }): Promise<FareQuote> {
-  const { baseFare, perKm, minimumFare } = await getRidePricing();
-  const route = await new GooglePlaceRouteAdapter().getRoute(origin, destination);
-  const distanceFare = (route.distanceMeters / 1000) * perKm;
-  const totalFare = Math.max(minimumFare, baseFare + distanceFare);
+export async function calculateFare(
+  origin: Coordinate,
+  destination: Coordinate,
+  destinations: FareStop[] = [],
+  vehicleType: VehicleType = "CAR",
+): Promise<FareQuote> {
+  const pricing = await getRidePricing();
+  const rate = pricing.vehicleRates[vehicleType] ?? {
+    baseFare: pricing.baseFare,
+    perKm: pricing.perKm,
+    minimumFare: pricing.minimumFare,
+  };
+
+  const points: FareStop[] = [origin, ...destinations, destination];
+  const adapter = new GooglePlaceRouteAdapter();
+  const legs: FareQuote["legs"] = [];
+  let distanceMeters = 0;
+  let durationSeconds = 0;
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const route = await adapter.getRoute(points[index], points[index + 1]);
+    distanceMeters += route.distanceMeters;
+    durationSeconds += route.durationSeconds;
+    legs.push({ distanceMeters: route.distanceMeters, durationSeconds: route.durationSeconds });
+  }
+
+  const distanceFare = (distanceMeters / 1000) * rate.perKm;
+  const totalFare = Math.max(rate.minimumFare, rate.baseFare + distanceFare);
+
   return {
     currency: "INR",
-    distanceMeters: route.distanceMeters,
-    durationSeconds: route.durationSeconds,
-    baseFare: money(baseFare),
+    vehicleType,
+    distanceMeters,
+    durationSeconds,
+    baseFare: money(rate.baseFare),
     distanceFare: money(distanceFare),
     totalFare: money(totalFare),
+    legs,
   };
 }
