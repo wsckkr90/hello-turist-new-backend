@@ -11,7 +11,7 @@ function numberField(value: unknown, field: string): number | undefined {
   return parsed;
 }
 
-function vehicleRatesField(value: unknown): Partial<Record<(typeof VEHICLE_TYPES)[number], VehicleRate>> | undefined {
+function vehicleRatesField(value: unknown): Partial<Record<(typeof VEHICLE_TYPES)[number], Partial<VehicleRate>>> | undefined {
   if (value === undefined) return undefined;
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("INVALID_VEHICLE_RATES");
   const result: Partial<Record<(typeof VEHICLE_TYPES)[number], VehicleRate>> = {};
@@ -19,11 +19,14 @@ function vehicleRatesField(value: unknown): Partial<Record<(typeof VEHICLE_TYPES
     const source = (value as Record<string, unknown>)[type];
     if (source === undefined) continue;
     if (!source || typeof source !== "object" || Array.isArray(source)) throw new Error(`INVALID_${type}_RATE`);
-    result[type] = {
-      baseFare: numberField((source as Record<string, unknown>).baseFare, `${type}_BASE_FARE`) ?? 0,
-      perKm: numberField((source as Record<string, unknown>).perKm, `${type}_PER_KM`) ?? 0,
-      minimumFare: numberField((source as Record<string, unknown>).minimumFare, `${type}_MINIMUM_FARE`) ?? 0,
-    };
+    const rate: Partial<VehicleRate> = {};
+    const baseFare = numberField((source as Record<string, unknown>).baseFare, `${type}_BASE_FARE`);
+    const perKm = numberField((source as Record<string, unknown>).perKm, `${type}_PER_KM`);
+    const minimumFare = numberField((source as Record<string, unknown>).minimumFare, `${type}_MINIMUM_FARE`);
+    if (baseFare !== undefined) rate.baseFare = baseFare;
+    if (perKm !== undefined) rate.perKm = perKm;
+    if (minimumFare !== undefined) rate.minimumFare = minimumFare;
+    result[type] = rate;
   }
   return result;
 }
