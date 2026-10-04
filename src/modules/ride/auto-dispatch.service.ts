@@ -35,6 +35,7 @@ export async function dispatchRide(rideId: string) {
       serviceType: true,
       pickupLatitude: true,
       pickupLongitude: true,
+      vehicleType: true,
     },
   });
 
@@ -67,12 +68,13 @@ export async function dispatchRide(rideId: string) {
       serviceCity: true,
       experienceYears: true,
       updatedAt: true,
-      user: { select: { name: true } },
+      user: { select: { name: true }, },
+      vehicles: { where: { isActive: true }, select: { vehicleType: true } },
     },
     take: CANDIDATE_LIMIT,
   });
 
-  const candidates = drivers.filter((driver) => !assignedDriverIds.has(driver.userId) && !busyDriverIds.has(driver.userId));
+  const candidates = drivers.filter((driver) => !assignedDriverIds.has(driver.userId) && !busyDriverIds.has(driver.userId) && driver.vehicles.some((vehicle) => vehicle.vehicleType === ride.vehicleType));
   if (!candidates.length) return null;
 
   const locations = await prisma.rideLocation.findMany({
@@ -125,6 +127,7 @@ export async function dispatchRide(rideId: string) {
                   driverId: candidate.driver.userId,
                   assignmentId: created.id,
                   dispatch: "AUTOMATIC",
+                  vehicleType: ride.vehicleType,
                   distanceKm: candidate.distanceKm,
                   score: Number(candidate.score.toFixed(4)),
                 },
