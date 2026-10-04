@@ -51,6 +51,7 @@ function money(value: number): number {
 }
 
 function parseRate(value: unknown, fallback: VehicleRate): VehicleRate {
+  if (value === undefined) return fallback;
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("RIDE_PRICING_CONFIG_INVALID");
   const source = value as Record<string, unknown>;
   const baseFare = Number(source.baseFare ?? fallback.baseFare);
