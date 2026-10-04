@@ -17,6 +17,7 @@ function handleError(res: Response, requestId: string, error: unknown) {
     INVALID_RIDE_STATE: [409, "Invalid ride state transition"], DRIVER_ASSIGNMENT_NOT_FOUND: [404, "Driver assignment not found"],
     INVALID_ASSIGNMENT_STATE: [409, "Invalid assignment state"], DRIVER_ASSIGNMENT_NOT_ACCEPTED: [409, "Driver assignment is not accepted"],
     DRIVER_REQUIRED: [403, "Driver access required"], INVALID_RIDE_ID: [400, "Invalid ride id"],
+    VEHICLE_TYPE_MISMATCH: [409, "Driver does not have the requested vehicle type"],
   };
   const [status, message] = map[code] ?? [500, "Internal server error"];
   return errorResponse(res, requestId, status, code, message);
