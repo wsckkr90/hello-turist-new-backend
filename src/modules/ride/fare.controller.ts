@@ -1,30 +1,23 @@
 import type { Request, Response } from "express";
 import { errorResponse, successResponse } from "../../core/api-response";
 import { calculateFare } from "./fare.service";
-
-function coordinate(value: unknown, name: string): number {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) throw new Error(`INVALID_${name}`);
-  return parsed;
-}
+import { fareQuoteSchema } from "./fare.schema";
 
 export async function fareQuoteController(req: Request, res: Response) {
+  const parsed = fareQuoteSchema.safeParse(req.body);
+  if (!parsed.success) return errorResponse(res, req.requestId, 400, "VALIDATION_ERROR", "Invalid fare quote request", parsed.error.flatten());
+
   try {
-    const origin = {
-      latitude: coordinate(req.body?.pickupLatitude, "PICKUP_LATITUDE"),
-      longitude: coordinate(req.body?.pickupLongitude, "PICKUP_LONGITUDE"),
-    };
-    const destination = {
-      latitude: coordinate(req.body?.dropoffLatitude, "DROPOFF_LATITUDE"),
-      longitude: coordinate(req.body?.dropoffLongitude, "DROPOFF_LONGITUDE"),
-    };
-    if (Math.abs(origin.latitude) > 90 || Math.abs(destination.latitude) > 90 || Math.abs(origin.longitude) > 180 || Math.abs(destination.longitude) > 180) {
-      return errorResponse(res, req.requestId, 400, "INVALID_COORDINATES", "Invalid coordinates");
-    }
-    return successResponse(res, req.requestId, await calculateFare(origin, destination));
+    const result = await calculateFare(
+      { latitude: parsed.data.pickupLatitude, longitude: parsed.data.pickupLongitude },
+      { latitude: parsed.data.dropoffLatitude, longitude: parsed.data.dropoffLongitude },
+      parsed.data.destinations,
+      parsed.data.vehicleType,
+    );
+    return successResponse(res, req.requestId, result);
   } catch (error) {
     const code = error instanceof Error ? error.message : "INTERNAL_ERROR";
-    const status = code === "RIDE_PRICING_CONFIG_MISSING" || code.startsWith("GOOGLE_") ? 503 : 400;
+    const status = code.startsWith("GOOGLE_") ? 503 : 400;
     return errorResponse(res, req.requestId, status, code, code === "RIDE_PRICING_CONFIG_MISSING" ? "Ride pricing is not configured" : "Unable to calculate fare");
   }
 }
