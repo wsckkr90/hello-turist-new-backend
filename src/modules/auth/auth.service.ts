@@ -323,3 +323,42 @@ export async function deleteUserAccount(userId: string) {
 
   return true;
 }
+
+export async function registerTestDriver(input: {
+  name: string;
+  username: string;
+  email?: string;
+  password: string;
+}) {
+  const user = await registerUser(input);
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.userRoleAssignment.create({
+        data: {
+          userId: user.id,
+          role: "DRIVER",
+          verificationStatus: "PENDING",
+        },
+      });
+
+      await tx.driverProfile.create({
+        data: {
+          userId: user.id,
+          serviceCity: "Kurukshetra",
+          serviceArea: "Kurukshetra",
+          isAvailable: false,
+        },
+      });
+    });
+  } catch (error) {
+    await prisma.user.delete({ where: { id: user.id } });
+    throw error;
+  }
+
+  return {
+    ...user,
+    role: "DRIVER",
+    verificationStatus: "PENDING",
+  };
+}
