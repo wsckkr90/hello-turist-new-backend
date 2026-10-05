@@ -58,6 +58,31 @@ export async function getVerificationRequest(userId: string, requestId: string) 
   return toPublicRequest(await getRequestForUser(userId, requestId));
 }
 
+export async function getLatestVerificationRequest(userId: string, role: ProviderRole) {
+  assertProviderRole(role);
+  const request = await prisma.verificationRequest.findFirst({
+    where: { userId, role },
+    orderBy: { createdAt: "desc" },
+    include: {
+      steps: { orderBy: { createdAt: "asc" } },
+      documents: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          documentType: true,
+          checksum: true,
+          expiryDate: true,
+          verificationStatus: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
+      liveSession: true,
+    },
+  });
+  return request ? toPublicRequest(request as Awaited<ReturnType<typeof getRequestForUser>>) : null;
+}
+
 export async function addVerificationDocument(userId: string, requestId: string, input: { documentType: string; privateObjectKey: string; checksum?: string; expiryDate?: Date }) {
   const request = await prisma.verificationRequest.findFirst({ where: { id: requestId, userId }, select: { id: true, status: true } });
   if (!request) throw new Error("VERIFICATION_REQUEST_NOT_FOUND");
