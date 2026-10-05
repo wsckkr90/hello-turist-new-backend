@@ -1,0 +1,11 @@
+name,username,email,password,experienceYears,vehicleMake,vehicleModel,vehicleYear,registrationNumber,vehicleType,seatCount,vehicleColor
+Test Driver 01,testdriver01,testdriver01@example.com,TestDriver@123,3,Tata,Nexon,2024,HR01TD0001,SUV,5,White
+Test Driver 02,testdriver02,testdriver02@example.com,TestDriver@123,5,Maruti,Brezza,2023,HR01TD0002,SUV,5,Silver
+Test Driver 03,testdriver03,testdriver03@example.com,TestDriver@123,2,Hyundai,Verna,2024,HR01TD0003,SEDAN,5,Black
+Test Driver 04,testdriver04,testdriver04@example.com,TestDriver@123,7,Kia,Carens,2022,HR01TD0004,VAN,7,Grey
+Test Driver 05,testdriver05,testdriver05@example.com,TestDriver@123,4,Toyota,Innova,2023,HR01TD0005,SUV,7,White
+Test Driver 06,testdriver06,testdriver06@example.com,TestDriver@123,6,Mahindra,Scorpio,2022,HR01TD0006,SUV,7,Black
+Test Driver 07,testdriver07,testdriver07@example.com,TestDriver@123,1,Tata,Altroz,2024,HR01TD0007,HATCHBACK,5,Blue
+Test Driver 08,testdriver08,testdriver08@example.com,TestDriver@123,8,Honda,Amaze,2023,HR01TD0008,SEDAN,5,Red
+Test Driver 09,testdriver09,testdriver09@example.com,TestDriver@123,5,Maruti,Ertiga,2024,HR01TD0009,VAN,7,White
+Test Driver 10,testdriver10,testdriver10@example.com,TestDriver@123,10,Toyota,Fortuner,2021,HR01TD0010,SUV,7,Black
