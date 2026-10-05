@@ -1,0 +1,186 @@
+{
+  "info": {
+    "name": "Hello Kurukshetra - Test Drivers Runner",
+    "_postman_id": "8d7f2d3d-6e89-4a32-9a67-2b4f7a8b6e21",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://hello-turist-backend-223677684112.asia-south2.run.app"
+    },
+    {
+      "key": "driverUserId",
+      "value": ""
+    },
+    {
+      "key": "driverAccessToken",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Register Test Driver",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Test-Api-Key",
+            "value": "{{testApiKey}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"{{name}}\",\n  \"username\": \"{{username}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/auth/test/register-driver"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"201 created\", () => pm.response.to.have.status(201));",
+              "const json = pm.response.json();",
+              "pm.test(\"success=true\", () => pm.expect(json.success).to.eql(true));",
+              "pm.collectionVariables.set(\"driverUserId\", json.data.user.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Login Driver",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/auth/login"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"200 login\", () => pm.response.to.have.status(200));",
+              "const json = pm.response.json();",
+              "pm.test(\"access token returned\", () => pm.expect(json.data.accessToken).to.be.a(\"string\").and.not.empty);",
+              "pm.collectionVariables.set(\"driverAccessToken\", json.data.accessToken);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Upsert Driver Profile",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{driverAccessToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"bio\": \"Test driver {{name}}\",\n  \"experienceYears\": {{experienceYears}},\n  \"serviceCity\": \"Kurukshetra\",\n  \"serviceArea\": \"Kurukshetra\",\n  \"isAvailable\": true\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/providers/driver/profile"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"200 profile\", () => pm.response.to.have.status(200));",
+              "const json = pm.response.json();",
+              "pm.test(\"driver profile returned\", () => pm.expect(json.success).to.eql(true));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Add Driver Vehicle",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{driverAccessToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"make\": \"{{vehicleMake}}\",\n  \"model\": \"{{vehicleModel}}\",\n  \"year\": {{vehicleYear}},\n  \"registrationNumber\": \"{{registrationNumber}}\",\n  \"vehicleType\": \"{{vehicleType}}\",\n  \"seatCount\": {{seatCount}},\n  \"color\": \"{{vehicleColor}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/providers/driver/vehicles"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"201 vehicle\", () => pm.response.to.have.status(201));",
+              "const json = pm.response.json();",
+              "pm.test(\"vehicle returned\", () => pm.expect(json.success).to.eql(true));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Approve Driver Role (Admin)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{adminAccessToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"verificationStatus\": \"APPROVED\"\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/admin/users/{{driverUserId}}/roles/DRIVER"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"200 approved\", () => pm.response.to.have.status(200));",
+              "const json = pm.response.json();",
+              "pm.test(\"driver approved\", () => pm.expect(json.data.role.verificationStatus).to.eql(\"APPROVED\"));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
