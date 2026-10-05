@@ -12,6 +12,7 @@ import {
 } from "./social-auth.controller";
 import { requestOtpController, verifyOtpController, firebasePhoneController } from "./otp.controller";
 import { authMiddleware } from "../../middleware/auth";
+import { registerTestDriverController } from "./test-auth.controller";
 import { redisRateLimit } from "../../middleware/rate-limit";
 
 const router = Router();
@@ -42,6 +43,8 @@ const otpVerifyLimit = redisRateLimit({
 
 // Every new local account must include a mobile number.
 router.post("/register", authAttemptLimit, registerWithPhone);
+// Explicitly disabled unless ENABLE_TEST_ENDPOINTS=true and X-Test-Api-Key matches TEST_API_KEY.
+router.post("/test/register-driver", registerTestDriverController);
 // Google account creation/login requires a mobile number before a backend session is issued.
 router.post("/google", authAttemptLimit, googleAuth);
 router.post("/otp/request", otpRequestLimit, requestOtpController);
