@@ -10,14 +10,6 @@
       "value": "https://hello-turist-backend-223677684112.asia-south2.run.app"
     },
     {
-      "key": "testApiKey",
-      "value": ""
-    },
-    {
-      "key": "adminAccessToken",
-      "value": ""
-    },
-    {
       "key": "driverUserId",
       "value": ""
     },
