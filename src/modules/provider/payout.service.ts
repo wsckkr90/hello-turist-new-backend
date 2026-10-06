@@ -16,8 +16,8 @@ async function razorpayXRequest(path: string, init: RequestInit = {}) {
     ...init,
     headers: {
       "content-type": "application/json",
-      authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`,
       ...(init.headers ?? {}),
+      authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`,
     },
   });
   const text = await response.text();
@@ -190,6 +190,7 @@ export async function createDriverPayout(driverId: string, amount: number, rideI
     const config = razorpayXConfig();
     const payout = await razorpayXRequest("/payouts", {
       method: "POST",
+      headers: { "X-Payout-Idempotency": payoutRecord.id },
       body: JSON.stringify({
         account_number: config.accountNumber,
         fund_account_id: account.razorpayFundAccountId,
