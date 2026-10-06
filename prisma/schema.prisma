@@ -227,6 +227,7 @@ model DriverPayout {
   @@index([driverId, createdAt])
   @@index([status, createdAt])
   @@index([rideId])
+  @@unique([rideId])
   @@map("driver_payouts")
 }
 

@@ -1,5 +1,6 @@
 import { prisma } from "../../core/prisma";
 import { encryptPayoutField } from "../../core/payout-data";
+import { notifyUser } from "../notification/notification.service";
 import type { PayoutAccountInput } from "./payout.schema";
 
 function razorpayXConfig() {
@@ -175,16 +176,35 @@ export async function createDriverPayout(driverId: string, amount: number, rideI
   if (!account?.razorpayFundAccountId) throw new Error("PAYOUT_ACCOUNT_NOT_READY");
   if (account.verificationStatus !== "REGISTERED" && account.verificationStatus !== "VERIFIED") throw new Error("PAYOUT_ACCOUNT_NOT_READY");
 
-  const payoutRecord = await prisma.driverPayout.create({
-    data: {
-      driverId,
-      rideId,
-      amount,
-      mode: account.method === "UPI" ? "UPI" : "IMPS",
-      status: "PENDING",
-      metadata: { fundAccountId: account.razorpayFundAccountId },
-    },
-  });
+  let payoutRecord = rideId
+    ? await prisma.driverPayout.findUnique({ where: { rideId } })
+    : null;
+
+  if (payoutRecord && ["PROCESSED", "PROCESSING", "QUEUED", "PENDING"].includes(payoutRecord.status)) return payoutRecord;
+  if (!payoutRecord) {
+    payoutRecord = await prisma.driverPayout.create({
+      data: {
+        driverId,
+        rideId,
+        amount,
+        mode: account.method === "UPI" ? "UPI" : "IMPS",
+        status: "PENDING",
+        metadata: { fundAccountId: account.razorpayFundAccountId, commissionPercent: 0, driverEarningPercent: 100 },
+      },
+    });
+  } else {
+    payoutRecord = await prisma.driverPayout.update({
+      where: { id: payoutRecord.id },
+      data: {
+        driverId,
+        amount,
+        mode: account.method === "UPI" ? "UPI" : "IMPS",
+        status: "PENDING",
+        failureReason: null,
+        metadata: { ...((payoutRecord.metadata as Record<string, unknown> | null) ?? {}), fundAccountId: account.razorpayFundAccountId, commissionPercent: 0, driverEarningPercent: 100 },
+      },
+    });
+  }
 
   try {
     const config = razorpayXConfig();
@@ -203,9 +223,10 @@ export async function createDriverPayout(driverId: string, amount: number, rideI
         narration: "Hello Kurukshetra driver payout",
       }),
     });
+    const providerStatus = String(payout.status ?? "processing").toUpperCase();
     const updated = await prisma.driverPayout.update({
       where: { id: payoutRecord.id },
-      data: { status: String(payout.status ?? "PROCESSING").toUpperCase(), providerPayoutId: payout.id, metadata: payout },
+      data: { status: providerStatus, providerPayoutId: payout.id, metadata: { ...((payoutRecord.metadata as Record<string, unknown> | null) ?? {}), provider: payout } },
     });
     return updated;
   } catch (error) {
@@ -215,6 +236,59 @@ export async function createDriverPayout(driverId: string, amount: number, rideI
     });
     throw error;
   }
+}
+
+export async function settleCompletedRidePayout(rideId: string) {
+  const ride = await prisma.ride.findUnique({
+    where: { id: rideId },
+    select: {
+      id: true,
+      status: true,
+      payment: { select: { amount: true, status: true, currency: true } },
+      assignments: { where: { status: "ACCEPTED" }, orderBy: { acceptedAt: "desc" }, take: 1, select: { driverId: true } },
+    },
+  });
+  if (!ride) throw new Error("RIDE_NOT_FOUND");
+  if (ride.status !== "COMPLETED") throw new Error("INVALID_RIDE_STATE");
+  if (!ride.payment || ride.payment.status !== "CAPTURED") throw new Error("DRIVER_PAYOUT_PAYMENT_NOT_CAPTURED");
+  if (ride.payment.currency !== "INR") throw new Error("DRIVER_PAYOUT_CURRENCY_UNSUPPORTED");
+  const assignment = ride.assignments[0];
+  if (!assignment) throw new Error("DRIVER_ASSIGNMENT_NOT_FOUND");
+
+  const amount = Number(ride.payment.amount);
+  const payout = await createDriverPayout(assignment.driverId, amount, ride.id);
+  void notifyUser(
+    assignment.driverId,
+    payout.status === "PROCESSED" ? "Driver payout completed" : "Driver payout initiated",
+    payout.status === "PROCESSED"
+      ? `₹${amount.toFixed(2)} has been paid for your completed ride.`
+      : `Your ₹${amount.toFixed(2)} ride earning payout has been initiated.`,
+    { rideId: ride.id, payoutId: payout.id, status: payout.status, amount, commissionPercent: 0 },
+  ).catch(() => undefined);
+  return payout;
+}
+
+export async function applyRazorpayXPayoutWebhook(event: string, payload: any) {
+  const entity = payload?.payout?.entity;
+  const providerPayoutId = entity?.id;
+  if (!providerPayoutId) throw new Error("INVALID_RAZORPAYX_PAYOUT_WEBHOOK");
+  const payout = await prisma.driverPayout.findUnique({ where: { providerPayoutId } });
+  if (!payout) throw new Error("PAYOUT_NOT_FOUND");
+
+  const incomingStatus = String(entity.status ?? event.replace(/^payout\./, "")).toUpperCase();
+  const terminal = new Set(["PROCESSED", "REVERSED", "FAILED", "CANCELLED", "REJECTED"]);
+  if (terminal.has(payout.status) && payout.status !== incomingStatus) return payout;
+
+  const status = incomingStatus === "INITIATED" ? "PROCESSING" : incomingStatus;
+  const updated = await prisma.driverPayout.update({
+    where: { id: payout.id },
+    data: {
+      status,
+      failureReason: entity.failure_reason ?? entity.error?.description ?? (["FAILED", "REVERSED", "CANCELLED", "REJECTED"].includes(status) ? "RazorpayX payout did not complete" : payout.failureReason),
+      metadata: { ...((payout.metadata as Record<string, unknown> | null) ?? {}), webhookEvent: event, provider: entity },
+    },
+  });
+  return updated;
 }
 
 export async function listDriverPayouts(driverId: string) {
