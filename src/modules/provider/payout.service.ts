@@ -124,12 +124,34 @@ export async function upsertDriverPayoutAccount(userId: string, input: PayoutAcc
   }
 
   const existing = await prisma.driverPayoutAccount.findUnique({ where: { userId } });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, phone: true } });
+  if (!user) throw new Error("USER_NOT_FOUND");
+  const contact = await razorpayXRequest("/contacts", {
+    method: "POST",
+    body: JSON.stringify({
+      name: user.name,
+      email: user.email ?? `${userId}@hello-kurukshetra.invalid`,
+      contact: user.phone ?? "0000000000",
+      type: "vendor",
+      reference_id: `driver_${userId}`.slice(0, 40),
+    }),
+  });
+  const fundAccount = await razorpayXRequest("/fund_accounts", {
+    method: "POST",
+    body: JSON.stringify({
+      contact_id: contact.id,
+      account_type: "vpa",
+      vpa: { address: input.upiVpa },
+    }),
+  });
   const saved = await prisma.driverPayoutAccount.upsert({
     where: { userId },
     create: {
       userId,
       method: "UPI",
       encryptedUpiVpa: encryptPayoutField(input.upiVpa),
+      razorpayContactId: contact.id,
+      razorpayFundAccountId: fundAccount.id,
       verificationStatus: "REGISTERED",
     },
     update: {
@@ -139,8 +161,8 @@ export async function upsertDriverPayoutAccount(userId: string, input: PayoutAcc
       accountNumberLast4: null,
       ifsc: null,
       encryptedUpiVpa: encryptPayoutField(input.upiVpa),
-      razorpayContactId: existing?.razorpayContactId ?? null,
-      razorpayFundAccountId: existing?.razorpayFundAccountId ?? null,
+      razorpayContactId: contact.id,
+      razorpayFundAccountId: fundAccount.id,
       verificationStatus: "REGISTERED",
     },
   });
