@@ -77,8 +77,8 @@ export async function upsertDriverPayoutAccount(userId: string, input: PayoutAcc
       method: "POST",
       body: JSON.stringify({
         name: input.accountHolderName,
-        email: user.email ?? `${userId}@hello-kurukshetra.invalid`,
-        contact: user.phone ?? "0000000000",
+        ...(user.email ? { email: user.email } : {}),
+        ...(user.phone ? { contact: user.phone.replace(/^\\+91/, "") } : {}),
         type: "vendor",
         reference_id: `driver_${userId}`.slice(0, 40),
       }),
@@ -130,8 +130,8 @@ export async function upsertDriverPayoutAccount(userId: string, input: PayoutAcc
     method: "POST",
     body: JSON.stringify({
       name: user.name,
-      email: user.email ?? `${userId}@hello-kurukshetra.invalid`,
-      contact: user.phone ?? "0000000000",
+      ...(user.email ? { email: user.email } : {}),
+      ...(user.phone ? { contact: user.phone.replace(/^\\+91/, "") } : {}),
       type: "vendor",
       reference_id: `driver_${userId}`.slice(0, 40),
     }),
