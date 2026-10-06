@@ -61,6 +61,8 @@ model User {
   payments             Payment[]             @relation("PaymentPayer")
   guideAssignments     GuideAssignment[]     @relation("RideGuide")
   notifications        Notification[]
+  payoutAccount        DriverPayoutAccount?
+  driverPayouts        DriverPayout[]
 
   @@map("users")
 }
@@ -184,6 +186,48 @@ model DriverProfile {
   @@index([serviceCity])
   @@index([isAvailable])
   @@map("driver_profiles")
+}
+
+model DriverPayoutAccount {
+  id                    String   @id @default(uuid()) @db.Uuid
+  userId                String   @unique @map("user_id") @db.Uuid
+  method                String   @default("BANK")
+  accountHolderName     String?  @map("account_holder_name")
+  encryptedAccountNumber String? @map("encrypted_account_number")
+  accountNumberLast4    String?  @map("account_number_last4")
+  ifsc                  String?
+  encryptedUpiVpa       String?  @map("encrypted_upi_vpa")
+  razorpayContactId     String?  @map("razorpay_contact_id")
+  razorpayFundAccountId String?  @map("razorpay_fund_account_id")
+  verificationStatus    String   @default("PENDING") @map("verification_status")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([verificationStatus])
+  @@map("driver_payout_accounts")
+}
+
+model DriverPayout {
+  id                String   @id @default(uuid()) @db.Uuid
+  driverId          String   @map("driver_id") @db.Uuid
+  rideId            String?  @map("ride_id") @db.Uuid
+  amount            Decimal  @db.Decimal(12, 2)
+  currency          String   @default("INR") @db.VarChar(3)
+  mode              String
+  status            String   @default("PENDING")
+  provider          String   @default("RAZORPAYX")
+  providerPayoutId  String?  @unique @map("provider_payout_id")
+  failureReason     String?  @map("failure_reason")
+  metadata          Json?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  driver            User     @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([driverId, createdAt])
+  @@index([status, createdAt])
+  @@index([rideId])
+  @@map("driver_payouts")
 }
 
 model GuideProfile {

@@ -12,7 +12,7 @@ import { getAdminHomeBannerController, updateHomeBannerController } from "../hom
 import { getOperationalRides, getOperationalRideById, assignOperationalRideController, cancelOperationalRideController, interruptOperationalRideController, recoverOperationalRideController } from "./ride-operations.controller";
 import { listEmergencyAdmin, getEmergencyAdmin, acknowledgeEmergencyAdminController, escalateEmergencyAdminController, resolveEmergencyAdminController, assignResponderAdmin, responderStatusAdmin } from "./emergency.controller";
 import { getRidePricingController, updateRidePricingController } from "./pricing.controller";
-import { listAdminPaymentsController, refundAdminPaymentController } from "./finance.controller";
+import { listAdminPaymentsController, refundAdminPaymentController, createDriverPayoutController } from "./finance.controller";
 import { listAdminPermissions, updateAdminPermissions } from "./rbac.controller";
 import { getAdminAnalytics } from "./analytics.controller";
 import { getFinanceSummary } from "./finance.controller";
@@ -29,6 +29,7 @@ router.get("/audit-logs", ...admin, requirePermission("audit.read"), listAuditLo
 router.get("/finance/summary", ...admin, requirePermission("payments.read"), getFinanceSummary);
 router.get("/finance/payments", ...admin, requirePermission("payments.read"), listAdminPaymentsController);
 router.post("/finance/payments/:id/refund", ...admin, requirePermission("payments.refund"), adminMutationLimit, idempotencyMiddleware(), refundAdminPaymentController);
+router.post("/finance/payouts/drivers/:driverId", ...admin, requirePermission("payments.refund"), adminMutationLimit, idempotencyMiddleware(), createDriverPayoutController);
 router.get("/notifications", ...admin, requirePermission("notifications.read"), listAdminNotifications);
 router.post("/notifications", ...admin, requirePermission("notifications.manage"), adminMutationLimit, idempotencyMiddleware(), sendAdminNotification);
 router.get("/promotions", ...admin, requirePermission("promotions.read"), listAdminPromotionsController);

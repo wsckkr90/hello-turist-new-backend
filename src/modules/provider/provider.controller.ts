@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import { errorResponse, successResponse } from "../../core/api-response";
 import { driverProfileSchema, guideProfileSchema, updateVehicleSchema, vehicleSchema } from "./provider.schema";
 import * as service from "./provider.service";
+import { payoutAccountSchema } from "./payout.schema";
+import * as payoutService from "./payout.service";
 
 function param(req: Request, name: string): string {
   const value = req.params[name];
@@ -14,6 +16,12 @@ function handleError(error: unknown, req: Request, res: Response) {
     ROLE_NOT_FOUND: [403, "Required provider role is not assigned"],
     DRIVER_PROFILE_REQUIRED: [400, "Create driver profile before adding vehicles"],
     VEHICLE_NOT_FOUND: [404, "Vehicle not found"],
+    PAYOUT_ACCOUNT_NOT_READY: [409, "Payout account is not ready"],
+    RAZORPAYX_NOT_CONFIGURED: [503, "RazorpayX payouts are not configured"],
+    RAZORPAYX_REQUEST_FAILED: [502, "RazorpayX payout request failed"],
+    PAYOUT_DATA_ENCRYPTION_KEY_NOT_CONFIGURED: [503, "Payout data encryption is not configured"],
+    PAYOUT_DATA_ENCRYPTION_KEY_INVALID: [503, "Payout data encryption key is invalid"],
+    USER_NOT_FOUND: [404, "User not found"],
   };
   const [status, message] = map[code] ?? [500, "Something went wrong"];
   return errorResponse(res, req.requestId, status, code, message);
@@ -70,5 +78,22 @@ export async function updateVehicleController(req: Request, res: Response) {
 
 export async function deleteVehicleController(req: Request, res: Response) {
   try { return successResponse(res, req.requestId, await service.deleteVehicle(req.user.id, param(req, "id"))); }
+  catch (error) { return handleError(error, req, res); }
+}
+
+export async function getDriverPayoutAccount(req: Request, res: Response) {
+  try { return successResponse(res, req.requestId, await payoutService.getDriverPayoutAccount(req.user.id)); }
+  catch (error) { return handleError(error, req, res); }
+}
+
+export async function updateDriverPayoutAccount(req: Request, res: Response) {
+  const parsed = payoutAccountSchema.safeParse(req.body);
+  if (!parsed.success) return errorResponse(res, req.requestId, 400, "VALIDATION_ERROR", "Invalid payout account", parsed.error.flatten());
+  try { return successResponse(res, req.requestId, await payoutService.upsertDriverPayoutAccount(req.user.id, parsed.data)); }
+  catch (error) { return handleError(error, req, res); }
+}
+
+export async function listDriverPayouts(req: Request, res: Response) {
+  try { return successResponse(res, req.requestId, await payoutService.listDriverPayouts(req.user.id)); }
   catch (error) { return handleError(error, req, res); }
 }
