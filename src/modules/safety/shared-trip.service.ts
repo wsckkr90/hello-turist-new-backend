@@ -3,7 +3,11 @@ import { prisma } from "../../core/prisma";
 type ShareAccess = { id: string; mode: "owner" | "trusted-contact" | "public" };
 
 function publicBaseUrl() {
-  return (process.env.TRIP_SHARE_PUBLIC_BASE_URL || process.env.E2E_BASE_URL || "").replace(/\/$/, "");
+  // Prefer the explicitly configured public origin. The production API origin is
+  // a safe fallback so share links never point to a local/E2E-only URL.
+  const configured = process.env.TRIP_SHARE_PUBLIC_BASE_URL?.trim();
+  const fallback = "https://hello-turist-backend-223677684112.asia-south2.run.app";
+  return (configured || fallback).replace(/\/$/, "");
 }
 
 function whatsappPhone(phone: string) {
@@ -64,11 +68,11 @@ async function loadSharedTrip(sharedTripId: string) {
   const driver = assignment?.driver;
   const vehicle = driver?.driverProfile?.vehicles[0];
   const apiBase = publicBaseUrl();
-  const shareUrl = apiBase ? `${apiBase}/api/v1/public/trips/shared/${shared.id}` : undefined;
+  const shareUrl = `${apiBase}/api/v1/public/trips/shared/${shared.id}`;
   const message = [
-    "Hello Tourist live trip",
+    "Hello Kurukshetra live trip",
     `Route: ${ride.pickupAddress} → ${ride.dropoffAddress}`,
-    shareUrl ? `Live trip: ${shareUrl}` : undefined,
+    `Live trip: ${shareUrl}`,
     `Expires: ${shared.expiresAt.toISOString()}`,
   ].filter(Boolean).join("\n");
 
