@@ -21,7 +21,49 @@ export async function cancelRide(userId:string,rideId:string,data:CancelRideInpu
 export async function assignRide(userId:string,rideId:string,data:AssignRideInput){const admin=await prisma.userRoleAssignment.findUnique({where:{userId_role:{userId,role:"ADMIN"}}});if(!admin)throw new Error("ADMIN_REQUIRED");await requireApprovedDriver(data.driverId);const ride=await prisma.ride.findUnique({where:{id:rideId}});if(!ride)throw new Error("RIDE_NOT_FOUND");if(ride.serviceType==="GUIDE_ONLY")throw new Error("DRIVER_NOT_REQUIRED");if(!["REQUESTED","SEARCHING"].includes(ride.status))throw new Error("INVALID_RIDE_STATE");const assignment=await prisma.$transaction(async tx=>{const c=await tx.rideAssignment.create({data:{rideId,driverId:data.driverId,status:"OFFERED"}});await tx.ride.update({where:{id:rideId},data:{status:"ASSIGNED"}});await tx.rideEvent.create({data:{rideId,actorUserId:userId,type:"DRIVER_ASSIGNED",payload:{driverId:data.driverId}}});return c});void notifyUser(ride.riderId,"Driver assigned","A driver has been assigned to your ride.",{rideId,driverId:data.driverId,status:"ASSIGNED"}).catch(()=>undefined);void notifyUser(data.driverId,"New ride assigned","You have a new ride assignment. Please accept or reject it.",{rideId,status:assignment.status}).catch(()=>undefined);return assignment}
 export async function acceptRide(userId:string,rideId:string){await requireApprovedDriver(userId);const a=await requireDriverAssignment(userId,rideId);if(a.status!=="OFFERED")throw new Error("INVALID_ASSIGNMENT_STATE");const u=await prisma.$transaction(async tx=>{const accepted=await tx.rideAssignment.findFirst({where:{rideId,status:"ACCEPTED"},select:{id:true}});if(accepted)throw new Error("RIDE_ALREADY_ACCEPTED");const updated=await tx.rideAssignment.updateMany({where:{id:a.id,rideId,driverId:userId,status:"OFFERED"},data:{status:"ACCEPTED",acceptedAt:new Date()}});if(updated.count!==1)throw new Error("INVALID_ASSIGNMENT_STATE");await tx.ride.update({where:{id:rideId},data:{status:"ASSIGNED"}});await tx.rideEvent.create({data:{rideId,actorUserId:userId,type:"DRIVER_ACCEPTED"}});return tx.rideAssignment.findUnique({where:{id:a.id}})}, {isolationLevel:"Serializable"});const ride=await prisma.ride.findUnique({where:{id:rideId},select:{riderId:true}});if(ride)void notifyUser(ride.riderId,"Driver accepted","Your driver accepted the ride.",{rideId,status:u?.status}).catch(()=>undefined);return u}
 export async function rejectRide(userId:string,rideId:string){await requireApprovedDriver(userId);const a=await requireDriverAssignment(userId,rideId);if(a.status!=="OFFERED")throw new Error("INVALID_ASSIGNMENT_STATE");const u=await prisma.$transaction(async tx=>{const r=await prisma.rideAssignment.updateMany({where:{id:a.id,rideId,driverId:userId,status:"OFFERED"},data:{status:"REJECTED",rejectedAt:new Date()}});if(r.count!==1)throw new Error("INVALID_ASSIGNMENT_STATE");const remaining=await tx.rideAssignment.count({where:{rideId,status:{in:["OFFERED","ACCEPTED"]}}});if(remaining===0)await tx.ride.update({where:{id:rideId},data:{status:"SEARCHING"}});await tx.rideEvent.create({data:{rideId,actorUserId:userId,type:"DRIVER_REJECTED"}});return tx.rideAssignment.findUnique({where:{id:a.id}})});const ride=await prisma.ride.findUnique({where:{id:rideId},select:{riderId:true}});if(ride)void notifyUser(ride.riderId,"Driver declined","The assigned driver declined the ride. We are searching again.",{rideId,status:"SEARCHING"}).catch(()=>undefined);scheduleRideRetry(rideId,1);return u}
-export async function addLocation(userId:string,rideId:string,data:LocationInput){\n  const driverAssignment=await requireDriverAssignment(userId,rideId).catch(()=>null);\n  const guideAssignment=await requireGuideAssignment(userId,rideId).catch(()=>null);\n  let actor:"DRIVER"|"GUIDE";\n  if(driverAssignment?.status==="ACCEPTED"){await requireApprovedDriver(userId);actor="DRIVER"}\n  else if(guideAssignment?.status==="ACCEPTED"){await requireApprovedGuide(userId);actor="GUIDE"}\n  else if(guideAssignment){throw new Error("GUIDE_ASSIGNMENT_NOT_ACCEPTED")}\n  else if(driverAssignment){throw new Error("DRIVER_ASSIGNMENT_NOT_ACCEPTED")}\n  else throw new Error("LOCATION_ASSIGNMENT_NOT_FOUND");\n  const ride=await prisma.ride.findUnique({where:{id:rideId},select:{status:true}});\n  if(!ride)throw new Error("RIDE_NOT_FOUND");\n  if(["COMPLETED","CANCELLED"].includes(ride.status))throw new Error("INVALID_RIDE_STATE");\n  return prisma.rideLocation.create({data:{rideId,driverId:actor==="DRIVER"?userId:undefined,guideId:actor==="GUIDE"?userId:undefined,latitude:data.latitude,longitude:data.longitude,accuracy:data.accuracy,recordedAt:data.recordedAt?new Date(data.recordedAt):new Date()}})\n}
+export async function addLocation(userId: string, rideId: string, data: LocationInput) {
+  const driverAssignment = await requireDriverAssignment(userId, rideId).catch(() => null);
+  const guideAssignment = await requireGuideAssignment(userId, rideId).catch(() => null);
+
+  let actor: "DRIVER" | "GUIDE";
+
+  if (driverAssignment?.status === "ACCEPTED") {
+    await requireApprovedDriver(userId);
+    actor = "DRIVER";
+  } else if (guideAssignment?.status === "ACCEPTED") {
+    await requireApprovedGuide(userId);
+    actor = "GUIDE";
+  } else if (guideAssignment) {
+    throw new Error("GUIDE_ASSIGNMENT_NOT_ACCEPTED");
+  } else if (driverAssignment) {
+    throw new Error("DRIVER_ASSIGNMENT_NOT_ACCEPTED");
+  } else {
+    throw new Error("LOCATION_ASSIGNMENT_NOT_FOUND");
+  }
+
+  const ride = await prisma.ride.findUnique({
+    where: { id: rideId },
+    select: { status: true },
+  });
+
+  if (!ride) throw new Error("RIDE_NOT_FOUND");
+
+  if (["COMPLETED", "CANCELLED"].includes(ride.status)) {
+    throw new Error("INVALID_RIDE_STATE");
+  }
+
+  return prisma.rideLocation.create({
+    data: {
+      rideId,
+      driverId: actor === "DRIVER" ? userId : undefined,
+      guideId: actor === "GUIDE" ? userId : undefined,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      accuracy: data.accuracy,
+      recordedAt: data.recordedAt ? new Date(data.recordedAt) : new Date(),
+    },
+  });
+}
 export async function addRideEvent(userId:string,rideId:string,data:RideEventInput){
   const ride=await getRideForActor(rideId,userId);
   if(ride.riderId===userId)throw new Error("DRIVER_REQUIRED");
