@@ -19,6 +19,8 @@ function handleError(res: Response, requestId: string, error: unknown) {
     DRIVER_ASSIGNMENT_NOT_FOUND: [404, "Driver assignment not found"],
     DRIVER_ASSIGNMENT_NOT_ACCEPTED: [409, "Driver assignment is not accepted"],
     DRIVER_REQUIRED: [403, "Driver access required"],
+    GUIDE_ASSIGNMENT_NOT_FOUND: [404, "Guide assignment not found"],
+    ASSIGNMENT_NOT_ACCEPTED: [409, "Assignment is not accepted"],
   };
   const [status, message] = map[code] ?? [500, "Internal server error"];
   return errorResponse(res, requestId, status, code, message);

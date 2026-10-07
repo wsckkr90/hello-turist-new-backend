@@ -30,6 +30,19 @@ const guideSelect = {
   isAvailable: true,
   createdAt: true,
   updatedAt: true,
+  user: {
+    select: {
+      id: true,
+      name: true,
+      username: true,
+      dateOfBirth: true,
+      gender: true,
+      roles: {
+        where: { role: "GUIDE" },
+        select: { verificationStatus: true },
+      },
+    },
+  },
 };
 
 async function requireRole(userId: string, role: "DRIVER" | "GUIDE") {
@@ -53,7 +66,18 @@ export async function upsertDriverProfile(userId: string, data: Record<string, u
 
 export async function getGuideProfile(userId: string) {
   await requireRole(userId, "GUIDE");
-  return prisma.guideProfile.findUnique({ where: { userId }, select: guideSelect });
+  const profile = await prisma.guideProfile.findUnique({ where: { userId }, select: guideSelect });
+  if (!profile) return null;
+
+  const { user, ...guide } = profile;
+  return {
+    ...guide,
+    user: {
+      ...user,
+      verificationStatus: user.roles[0]?.verificationStatus ?? "PENDING",
+      roles: undefined,
+    },
+  };
 }
 
 export async function listGuides(serviceCity?: string) {
