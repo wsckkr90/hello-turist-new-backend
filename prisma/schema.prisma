@@ -45,6 +45,8 @@ model User {
   passwordHash      String     @map("password_hash")
   status            UserStatus @default(ACTIVE)
   preferredLanguage String     @default("en") @map("preferred_language")
+  dateOfBirth       DateTime?  @map("date_of_birth") @db.Date
+  gender            Gender?
   createdAt         DateTime   @default(now()) @map("created_at")
   updatedAt         DateTime   @updatedAt @map("updated_at")
   deletedAt         DateTime?  @map("deleted_at")
@@ -662,4 +664,12 @@ enum SupportTicketStatus {
   WAITING_USER
   RESOLVED
   CLOSED
+}
+
+
+enum Gender {
+  FEMALE
+  MALE
+  NON_BINARY
+  PREFER_NOT_TO_SAY
 }
