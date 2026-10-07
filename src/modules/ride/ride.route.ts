@@ -6,7 +6,7 @@ import { driverArrivingController, driverArrivedController, startRideController,
 import { fareQuoteController } from "./fare.controller";
 import { listDriverRidesController } from "./driver-ride.controller";
 import { listAssignmentsController, guideSearchController, acceptAssignmentController, rejectAssignmentController } from "./dispatch.controller";
-import { listGuideAssignmentsController, offerGuideController, acceptGuideAssignmentController, rejectGuideAssignmentController } from "./guide-assignment.controller";
+import { listGuideAssignmentsController, listMyGuideAssignmentsController, offerGuideController, acceptGuideAssignmentController, rejectGuideAssignmentController } from "./guide-assignment.controller";
 import { notifyAcceptedTrustedContactsForRide } from "../safety/trusted-contact-notifier";
 
 const router = Router();
@@ -21,6 +21,7 @@ router.get("/", listRidesController);
 router.get("/history", listRidesController);
 router.get("/:id/assignments", listAssignmentsController);
 router.post("/:id/guide-search", guideSearchController);
+router.get("/guide-assignments/me", listMyGuideAssignmentsController);
 router.get("/:id/guide-assignments", listGuideAssignmentsController);
 router.post("/:id/guide-assignments", idempotencyMiddleware(), offerGuideController);
 router.post("/:id/guide-assignments/:assignmentId/accept", idempotencyMiddleware(), acceptGuideAssignmentController);
