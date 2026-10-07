@@ -60,6 +60,7 @@ model User {
   rideEvents           RideEvent[]           @relation("RideEventActor")
   rideAssignments      RideAssignment[]      @relation("RideDriver")
   rideLocations        RideLocation[]        @relation("RideLocationDriver")
+  guideRideLocations   RideLocation[]        @relation("RideLocationGuide")
   payments             Payment[]             @relation("PaymentPayer")
   guideAssignments     GuideAssignment[]     @relation("RideGuide")
   notifications        Notification[]
@@ -366,6 +367,7 @@ model RideLocation {
   id         String   @id @default(uuid()) @db.Uuid
   rideId     String   @map("ride_id") @db.Uuid
   driverId   String?  @map("driver_id") @db.Uuid
+  guideId    String?  @map("guide_id") @db.Uuid
   latitude   Decimal  @db.Decimal(10, 7)
   longitude  Decimal  @db.Decimal(10, 7)
   accuracy   Decimal? @db.Decimal(10, 2)
@@ -373,6 +375,7 @@ model RideLocation {
   createdAt  DateTime @default(now()) @map("created_at")
   ride       Ride     @relation(fields: [rideId], references: [id], onDelete: Cascade)
   driver     User?    @relation("RideLocationDriver", fields: [driverId], references: [id], onDelete: SetNull)
+  guide      User?    @relation("RideLocationGuide", fields: [guideId], references: [id], onDelete: SetNull)
 
   @@index([rideId, recordedAt])
   @@map("ride_locations")
