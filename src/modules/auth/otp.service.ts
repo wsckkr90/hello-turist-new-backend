@@ -76,7 +76,18 @@ async function issueSession(userId: string) {
 export async function verifyFirebasePhoneToken(idToken: string, inputPhone?: string) {
   if (!idToken.trim()) throw new Error("INVALID_FIREBASE_ID_TOKEN");
 
-  const decoded = await verifyFirebaseIdToken(idToken.trim());
+  let decoded;
+  try {
+    decoded = await verifyFirebaseIdToken(idToken.trim());
+  } catch (error) {
+    if (error instanceof Error && (
+      error.message === "FIREBASE_ADMIN_NOT_CONFIGURED" ||
+      error.message === "FIREBASE_CERTIFICATE_FETCH_FAILED"
+    )) {
+      throw error;
+    }
+    throw new Error("INVALID_FIREBASE_ID_TOKEN");
+  }
   const firebaseUid = decoded.uid;
   const tokenPhone = typeof decoded.phone_number === "string" ? normalizePhone(decoded.phone_number) : null;
   const requestedPhone = inputPhone?.trim() ? normalizePhone(inputPhone) : null;
