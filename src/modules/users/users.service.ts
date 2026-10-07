@@ -6,37 +6,93 @@ async function avatarFor(userId: string) {
   return rows[0]?.avatar_url ?? null;
 }
 
-export async function getCurrentUser(userId: string) {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id:true,name:true,username:true,email:true,phone:true,status:true,preferredLanguage:true,createdAt:true,updatedAt:true,roles:{select:{role:true,verificationStatus:true}} } });
-  if (!user) throw new Error("USER_NOT_FOUND");
-  const avatarUrl = await avatarFor(userId);
-  const basicProfileComplete = user.name.trim().length >= 2 && !!avatarUrl;
+type GenderValue = "FEMALE" | "MALE" | "NON_BINARY" | "PREFER_NOT_TO_SAY";
+
+function formatDateOfBirth(date: Date | null) {
+  return date ? date.toISOString().slice(0, 10) : null;
+}
+
+function calculateAge(date: Date | null) {
+  if (!date) return null;
+  const today = new Date();
+  let age = today.getUTCFullYear() - date.getUTCFullYear();
+  const month = today.getUTCMonth() - date.getUTCMonth();
+  if (month < 0 || (month === 0 && today.getUTCDate() < date.getUTCDate())) age -= 1;
+  return age;
+}
+
+function profilePayload(user: any, avatarUrl: string | null) {
+  const dateOfBirth = formatDateOfBirth(user.dateOfBirth);
+  const age = calculateAge(user.dateOfBirth);
+  const personalDetailsComplete = !!dateOfBirth && !!user.gender;
+  const basicProfileComplete = user.name.trim().length >= 2 && !!avatarUrl && personalDetailsComplete;
   return {
     ...user,
+    dateOfBirth,
+    age,
     avatarUrl,
     profileImageUrl: avatarUrl,
     profileCompleted: basicProfileComplete && user.roles.length > 0,
-    profileCompletion: { basicProfileComplete, roleSelected: user.roles.length > 0, nextRole: user.roles[0]?.role ?? null },
+    profileCompletion: {
+      basicProfileComplete,
+      personalDetailsComplete,
+      roleSelected: user.roles.length > 0,
+      nextRole: user.roles[0]?.role ?? null,
+    },
   };
 }
 
-export async function updateCurrentUser(userId: string, input: { name?: string; preferredLanguage?: string; avatarUrl?: string | null }) {
+export async function getCurrentUser(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id:true,name:true,username:true,email:true,phone:true,status:true,preferredLanguage:true,
+      dateOfBirth:true,gender:true,createdAt:true,updatedAt:true,
+      roles:{select:{role:true,verificationStatus:true}},
+    },
+  });
+  if (!user) throw new Error("USER_NOT_FOUND");
+  const avatarUrl = await avatarFor(userId);
+  return profilePayload(user, avatarUrl);
+}
+
+export async function updateCurrentUser(
+  userId: string,
+  input: {
+    name?: string;
+    preferredLanguage?: string;
+    avatarUrl?: string | null;
+    dateOfBirth?: string;
+    gender?: GenderValue;
+  },
+) {
   const existingUser = await prisma.user.findUnique({ where: { id: userId } });
   if (!existingUser) throw new Error("USER_NOT_FOUND");
   if (input.preferredLanguage !== undefined && !isSupportedLanguage(input.preferredLanguage)) throw new Error("UNSUPPORTED_LANGUAGE");
-  const user = await prisma.user.update({ where: { id: userId }, data: { ...(input.name !== undefined && { name: input.name }), ...(input.preferredLanguage !== undefined && { preferredLanguage: input.preferredLanguage }) }, select: { id:true,name:true,username:true,email:true,phone:true,status:true,preferredLanguage:true,createdAt:true,updatedAt:true,roles:{select:{role:true,verificationStatus:true}} } });
+
+  const dateOfBirth = input.dateOfBirth !== undefined
+    ? new Date(`${input.dateOfBirth}T00:00:00.000Z`)
+    : undefined;
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      ...(input.name !== undefined && { name: input.name }),
+      ...(input.preferredLanguage !== undefined && { preferredLanguage: input.preferredLanguage }),
+      ...(input.dateOfBirth !== undefined && { dateOfBirth }),
+      ...(input.gender !== undefined && { gender: input.gender }),
+    },
+    select: {
+      id:true,name:true,username:true,email:true,phone:true,status:true,preferredLanguage:true,
+      dateOfBirth:true,gender:true,createdAt:true,updatedAt:true,
+      roles:{select:{role:true,verificationStatus:true}},
+    },
+  });
   if (input.avatarUrl !== undefined) {
     await prisma.$executeRaw`INSERT INTO user_profile_media (user_id,avatar_url,updated_at) VALUES (${userId}::uuid,${input.avatarUrl},NOW()) ON CONFLICT (user_id) DO UPDATE SET avatar_url=EXCLUDED.avatar_url,updated_at=NOW()`;
   }
   const avatarUrl = await avatarFor(userId);
-  const basicProfileComplete = user.name.trim().length >= 2 && !!avatarUrl;
-  return {
-    ...user,
-    avatarUrl,
-    profileImageUrl: avatarUrl,
-    profileCompleted: basicProfileComplete && user.roles.length > 0,
-    profileCompletion: { basicProfileComplete, roleSelected: user.roles.length > 0, nextRole: user.roles[0]?.role ?? null },
-  };
+  return profilePayload(user, avatarUrl);
 }
 
 export async function updatePreferredLanguage(userId: string, preferredLanguage: string) {
