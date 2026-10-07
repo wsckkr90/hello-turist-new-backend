@@ -15,7 +15,7 @@ function handleError(res: Response, requestId: string, error: unknown) {
     RIDE_NOT_FOUND: [404, "Ride not found"], RIDE_ACCESS_DENIED: [403, "You do not have access to this ride"],
     ADMIN_REQUIRED: [403, "Admin access required"], DRIVER_NOT_VERIFIED: [400, "Driver is not verified"],
     INVALID_RIDE_STATE: [409, "Invalid ride state transition"], DRIVER_ASSIGNMENT_NOT_FOUND: [404, "Driver assignment not found"],
-    INVALID_ASSIGNMENT_STATE: [409, "Invalid assignment state"], DRIVER_ASSIGNMENT_NOT_ACCEPTED: [409, "Driver assignment is not accepted"],
+    INVALID_ASSIGNMENT_STATE: [409, "Invalid assignment state"], DRIVER_ASSIGNMENT_NOT_ACCEPTED: [409, "Driver assignment is not accepted"], GUIDE_ASSIGNMENT_NOT_FOUND: [404, "Guide assignment not found"], GUIDE_ASSIGNMENT_NOT_ACCEPTED: [409, "Guide assignment is not accepted"], GUIDE_NOT_VERIFIED: [400, "Guide is not verified"], LOCATION_ASSIGNMENT_NOT_FOUND: [404, "Provider assignment not found"],
     DRIVER_REQUIRED: [403, "Driver access required"], INVALID_RIDE_ID: [400, "Invalid ride id"],
   };
   const [status, message] = map[code] ?? [500, "Internal server error"];
