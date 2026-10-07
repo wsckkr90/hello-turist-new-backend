@@ -27,6 +27,18 @@ function handleError(res: Response, requestId: string, error: unknown) {
   return errorResponse(res, requestId, status, code, message);
 }
 
+export async function listMyGuideAssignmentsController(req: Request, res: Response) {
+  try {
+    return successResponse(
+      res,
+      req.requestId,
+      await service.listMyGuideAssignments(req.user!.id)
+    );
+  } catch (error) {
+    return handleError(res, req.requestId, error);
+  }
+}
+
 export async function listGuideAssignmentsController(req: Request, res: Response) {
   try { return successResponse(res, req.requestId, await service.listGuideAssignments(req.user!.id, id(req, "id"))); }
   catch (error) { return handleError(res, req.requestId, error); }

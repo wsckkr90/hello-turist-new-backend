@@ -86,3 +86,37 @@ export async function rejectGuideAssignment(userId: string, rideId: string, assi
   if (ride) void notifyUser(ride.riderId, "Guide declined", "The selected guide declined the trip.", { rideId, assignmentId, status: result?.status }).catch(() => undefined);
   return result;
 }
+
+
+export async function listMyGuideAssignments(userId: string) {
+  await requireApprovedGuide(userId);
+
+  return prisma.guideAssignment.findMany({
+    where: {
+      guideId: userId,
+      status: { in: ["OFFERED", "ACCEPTED"] },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    include: {
+      ride: {
+        select: {
+          id: true,
+          pickupAddress: true,
+          pickupLatitude: true,
+          pickupLongitude: true,
+          dropoffAddress: true,
+          dropoffLatitude: true,
+          dropoffLongitude: true,
+          serviceType: true,
+          purpose: true,
+          paymentMethod: true,
+          scheduledAt: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
+    },
+  });
+}
