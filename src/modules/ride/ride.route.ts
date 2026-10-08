@@ -2,7 +2,7 @@ import { Router } from "express";
 import { authMiddleware } from "../../middleware/auth";
 import { idempotencyMiddleware } from "../../middleware/idempotency";
 import { acceptRideController, addEventController, addLocationController, assignRideController, cancelRideController, createRideController, getRideController, listEventsController, listLocationsController, listRidesController, rejectRideController } from "./ride.controller";
-import { driverArrivingController, driverArrivedController, startRideController, nearDestinationController, completeRideController } from "./ride-action.controller";
+import { driverArrivingController, driverArrivedController, startRideController, nearDestinationController, completeRideController, recoverRideController } from "./ride-action.controller";
 import { fareQuoteController } from "./fare.controller";
 import { listDriverRidesController } from "./driver-ride.controller";
 import { listAssignmentsController, guideSearchController, acceptAssignmentController, rejectAssignmentController } from "./dispatch.controller";
@@ -47,6 +47,7 @@ router.post("/:id/start", idempotencyMiddleware(), (req, res) => {
 });
 router.post("/:id/near-destination", idempotencyMiddleware(), nearDestinationController);
 router.post("/:id/complete", idempotencyMiddleware(), completeRideController);
+router.post("/:id/recover", idempotencyMiddleware(), recoverRideController);
 router.post("/:id/events", idempotencyMiddleware(), (req, res) => {
   const rideId = req.params.id;
   const isRideStarted = req.body?.type === "RIDE_STARTED";
