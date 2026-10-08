@@ -23,6 +23,8 @@ async function requireRideMember(userId: string, rideId: string) {
 
 export async function searchAndOfferGuide(userId: string, rideId: string, guideId: string) {
   const ride = await requireRideMember(userId, rideId);
+  const admin = await prisma.userRoleAssignment.findUnique({ where: { userId_role: { userId, role: "ADMIN" } }, select: { id: true } });
+  if (!admin && ride.riderId !== userId) throw new Error("RIDE_ACCESS_DENIED");
   if (ride.serviceType === "RIDE_ONLY") throw new Error("GUIDE_NOT_REQUIRED");
   const guideRole = await prisma.userRoleAssignment.findUnique({ where: { userId_role: { userId: guideId, role: "GUIDE" } }, select: { verificationStatus: true } });
   const guide = await prisma.guideProfile.findUnique({ where: { userId: guideId }, select: { id: true, isAvailable: true } });
