@@ -6,6 +6,7 @@ const CANDIDATE_LIMIT = 50;
 const OFFER_LIMIT = 1;
 const RETRY_BASE_MS = 5_000;
 const RETRY_MAX_MS = 60_000;
+const MAX_RETRY_ATTEMPTS = 6;
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const toRad = (value: number) => (value * Math.PI) / 180;
@@ -163,9 +164,15 @@ export async function dispatchRide(rideId: string) {
 }
 
 export function scheduleRideRetry(rideId: string, attempt: number) {
+  if (attempt > MAX_RETRY_ATTEMPTS) return null;
   const delay = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** Math.max(0, Math.min(attempt - 1, 4)));
   setTimeout(() => {
-    void dispatchRide(rideId).catch((error) => console.error("Automatic dispatch retry failed", rideId, error));
+    void dispatchRide(rideId).then((assignment) => {
+      if (!assignment) scheduleRideRetry(rideId, attempt + 1);
+    }).catch((error) => {
+      console.error("Automatic dispatch retry failed", rideId, error);
+      scheduleRideRetry(rideId, attempt + 1);
+    });
   }, delay);
   return delay;
 }
