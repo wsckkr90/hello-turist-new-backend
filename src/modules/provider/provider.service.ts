@@ -1,4 +1,6 @@
 import { prisma } from "../../core/prisma";
+import { UserRole } from "../../generated/prisma/client";
+import type { Prisma } from "../../generated/prisma/client";
 import type { VehicleInput } from "./provider.schema";
 
 const driverSelect = {
@@ -38,12 +40,12 @@ const guideSelect = {
       dateOfBirth: true,
       gender: true,
       roles: {
-        where: { role: "GUIDE" },
+        where: { role: UserRole.GUIDE },
         select: { verificationStatus: true },
       },
     },
   },
-};
+} satisfies Prisma.GuideProfileSelect;
 
 async function requireRole(userId: string, role: "DRIVER" | "GUIDE") {
   const assignment = await prisma.userRoleAssignment.findUnique({
