@@ -72,7 +72,9 @@ export async function addRideEvent(userId:string,rideId:string,data:RideEventInp
   const guideAssignment=ride.guideAssignments.find(a=>a.guideId===userId&&a.status==="ACCEPTED");
 
   if(!driverAssignment&&!guideAssignment)throw new Error("ASSIGNMENT_NOT_ACCEPTED");
-  if(guideAssignment&&!driverAssignment)await requireApprovedGuide(userId);
+  if(guideAssignment && ride.serviceType !== "GUIDE_ONLY") throw new Error("DRIVER_REQUIRED");
+  if(guideAssignment&&!driverAssignment) await requireApprovedGuide(userId);
+  if(driverAssignment) await requireApprovedDriver(userId);
   if(!isValidRideTransition(ride.status, data.type))throw new Error("INVALID_RIDE_STATE");
 
   const next=nextRideStatus(data.type);
@@ -87,7 +89,7 @@ export async function addRideEvent(userId:string,rideId:string,data:RideEventInp
   if(updated.status==="COMPLETED"&&driverAssignment){
     try{await settleCompletedRidePayout(rideId)}catch(error){console.error("Automatic driver payout failed",{rideId,error})}
   }
-  const messages:Record<string,[string,string]>={DRIVER_ARRIVING:["Driver arriving","Your driver is on the way."],DRIVER_ARRIVED:["Driver arrived","Your driver has arrived at the pickup point."],RIDE_STARTED:["Ride started","Your ride has started."],NEAR_DESTINATION:["Near destination","Your ride is approaching the destination."],RIDE_COMPLETED:["Ride completed","Your ride has been completed."],INTERRUPTED:["Ride interrupted","Your ride has been temporarily interrupted."]};
+  const messages:Record<string,[string,string]>={DRIVER_ARRIVING:["Driver arriving","Your driver is on the way."],DRIVER_ARRIVED:["Driver arrived","Your driver has arrived at the pickup point."],RIDE_STARTED:["Ride started","Your ride has started."],NEAR_DESTINATION:["Near destination","Your ride is approaching the destination."],RIDE_COMPLETED:["Ride completed","Your ride has been completed."],INTERRUPTED:["Ride interrupted","Your ride has been temporarily interrupted."],RECOVERY_STARTED:["Ride resumed","Your ride has resumed."]};
   const [title,body]=messages[data.type];
   void notifyUser(ride.riderId,title,body,{rideId,status:updated.status}).catch(()=>undefined);
   return updated
