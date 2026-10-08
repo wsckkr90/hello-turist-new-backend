@@ -11,6 +11,8 @@ const cases: Array<[string,string,boolean,string?]> = [
   ["ASSIGNED","RIDE_STARTED",false],
   ["DRIVER_ARRIVING","RIDE_COMPLETED",false],
   ["COMPLETED","RIDE_STARTED",false],
+  ["INTERRUPTED","RECOVERY_STARTED",true,"IN_PROGRESS"],
+  ["IN_PROGRESS","RECOVERY_STARTED",false],
   ["CANCELLED","DRIVER_ARRIVING",false],
 ];
 

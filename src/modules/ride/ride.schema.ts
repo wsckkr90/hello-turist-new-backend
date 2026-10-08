@@ -26,7 +26,7 @@ export const createRideSchema = z.object({
 export const cancelRideSchema = z.object({ reason: z.string().trim().min(2).max(500) });
 export const assignRideSchema = z.object({ driverId: z.string().uuid() });
 export const locationSchema = z.object({ latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180), accuracy: z.number().min(0).max(10000).optional(), recordedAt: z.string().datetime().optional() });
-export const rideEventSchema = z.object({ type: z.enum(["DRIVER_ARRIVING", "DRIVER_ARRIVED", "RIDE_STARTED", "NEAR_DESTINATION", "RIDE_COMPLETED", "INTERRUPTED"]), payload: z.record(z.string(), z.unknown()).optional() });
+export const rideEventSchema = z.object({ type: z.enum(["DRIVER_ARRIVING", "DRIVER_ARRIVED", "RIDE_STARTED", "NEAR_DESTINATION", "RIDE_COMPLETED", "INTERRUPTED", "RECOVERY_STARTED"]), payload: z.record(z.string(), z.unknown()).optional() });
 export const rideListQuerySchema = z.object({ status: z.enum(["REQUESTED", "SEARCHING", "ASSIGNED", "DRIVER_ARRIVING", "DRIVER_ARRIVED", "IN_PROGRESS", "NEAR_DESTINATION", "INTERRUPTED", "COMPLETED", "CANCELLED"]).optional(), limit: z.coerce.number().int().min(1).max(50).default(20), cursor: z.string().uuid().optional() });
 
 export type CreateRideInput = z.infer<typeof createRideSchema>;

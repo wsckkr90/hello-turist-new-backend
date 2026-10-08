@@ -4,7 +4,8 @@ export type RideTransitionEvent =
   | "RIDE_STARTED"
   | "NEAR_DESTINATION"
   | "RIDE_COMPLETED"
-  | "INTERRUPTED";
+  | "INTERRUPTED"
+  | "RECOVERY_STARTED";
 
 const transitions: Record<RideTransitionEvent, readonly string[]> = {
   DRIVER_ARRIVING: ["ASSIGNED"],
@@ -13,6 +14,7 @@ const transitions: Record<RideTransitionEvent, readonly string[]> = {
   NEAR_DESTINATION: ["IN_PROGRESS"],
   RIDE_COMPLETED: ["NEAR_DESTINATION", "IN_PROGRESS"],
   INTERRUPTED: ["IN_PROGRESS", "DRIVER_ARRIVING", "DRIVER_ARRIVED"],
+  RECOVERY_STARTED: ["INTERRUPTED"],
 };
 
 const nextStates: Record<RideTransitionEvent, string> = {
@@ -22,6 +24,7 @@ const nextStates: Record<RideTransitionEvent, string> = {
   NEAR_DESTINATION: "NEAR_DESTINATION",
   RIDE_COMPLETED: "COMPLETED",
   INTERRUPTED: "INTERRUPTED",
+  RECOVERY_STARTED: "IN_PROGRESS",
 };
 
 export function isValidRideTransition(currentState: string, event: string): event is RideTransitionEvent {

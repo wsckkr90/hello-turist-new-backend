@@ -18,6 +18,9 @@ function handleError(res: Response, requestId: string, error: unknown) {
     DRIVER_NOT_VERIFIED: [400, "Driver is not verified"],
     DRIVER_ASSIGNMENT_NOT_FOUND: [404, "Driver assignment not found"],
     DRIVER_ASSIGNMENT_NOT_ACCEPTED: [409, "Driver assignment is not accepted"],
+    ASSIGNMENT_ACCESS_DENIED: [403, "You do not have access to this assignment"],
+    INVALID_ASSIGNMENT_STATE: [409, "Invalid assignment state"],
+    DRIVER_NOT_AVAILABLE: [409, "Driver is not available"],
     DRIVER_REQUIRED: [403, "Driver access required"],
     GUIDE_ASSIGNMENT_NOT_FOUND: [404, "Guide assignment not found"],
     ASSIGNMENT_NOT_ACCEPTED: [409, "Assignment is not accepted"],
@@ -26,7 +29,7 @@ function handleError(res: Response, requestId: string, error: unknown) {
   return errorResponse(res, requestId, status, code, message);
 }
 
-async function transition(req: Request, res: Response, type: "DRIVER_ARRIVING" | "DRIVER_ARRIVED" | "RIDE_STARTED" | "NEAR_DESTINATION" | "RIDE_COMPLETED") {
+async function transition(req: Request, res: Response, type: "DRIVER_ARRIVING" | "DRIVER_ARRIVED" | "RIDE_STARTED" | "NEAR_DESTINATION" | "RIDE_COMPLETED" | "RECOVERY_STARTED") {
   try {
     const payload = req.body && typeof req.body === "object" ? req.body : undefined;
     return successResponse(res, req.requestId, await service.addRideEvent(req.user!.id, rideId(req), { type, payload }));
@@ -53,4 +56,8 @@ export function nearDestinationController(req: Request, res: Response) {
 
 export function completeRideController(req: Request, res: Response) {
   return transition(req, res, "RIDE_COMPLETED");
+}
+
+export function recoverRideController(req: Request, res: Response) {
+  return transition(req, res, "RECOVERY_STARTED");
 }

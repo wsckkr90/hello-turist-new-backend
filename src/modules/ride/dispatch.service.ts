@@ -45,7 +45,7 @@ async function requireRide(rideId: string) {
 async function requireRideMember(userId: string, rideId: string) {
   const ride = await prisma.ride.findUnique({
     where: { id: rideId },
-    select: { id: true, riderId: true, assignments: { select: { driverId: true } } },
+    select: { id: true, riderId: true, assignments: { select: { driverId: true, status: true } } },
   });
   if (!ride) throw new Error("RIDE_NOT_FOUND");
 
@@ -53,7 +53,7 @@ async function requireRideMember(userId: string, rideId: string) {
     where: { userId_role: { userId, role: "ADMIN" } },
     select: { id: true },
   });
-  const member = ride.riderId === userId || ride.assignments.some((a) => a.driverId === userId);
+  const member = ride.riderId === userId || ride.assignments.some((a) => a.driverId === userId && ["OFFERED", "ACCEPTED"].includes(a.status));
   if (!admin && !member) throw new Error("RIDE_ACCESS_DENIED");
 }
 
