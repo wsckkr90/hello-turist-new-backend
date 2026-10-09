@@ -294,6 +294,9 @@ model Ride {
   cancelledAt        DateTime?         @map("cancelled_at")
   cancellationReason String?           @map("cancellation_reason")
   completedAt        DateTime?         @map("completed_at")
+  fareAmount         Decimal?          @map("fare_amount") @db.Decimal(12, 2)
+  fareCurrency       String            @default("INR") @map("fare_currency") @db.VarChar(3)
+  fareBreakdown      Json?             @map("fare_breakdown")
   createdAt          DateTime          @default(now()) @map("created_at")
   updatedAt          DateTime          @updatedAt @map("updated_at")
   rider              User              @relation("RideRider", fields: [riderId], references: [id], onDelete: Cascade)
@@ -302,12 +305,30 @@ model Ride {
   events             RideEvent[]
   locations          RideLocation[]
   payment            Payment?
+  destinations       RideDestination[]
 
   @@index([riderId, createdAt])
   @@index([status])
   @@index([scheduledAt])
   @@index([serviceType, status])
   @@map("rides")
+}
+
+
+model RideDestination {
+  id          String   @id @default(uuid()) @db.Uuid
+  rideId      String   @map("ride_id") @db.Uuid
+  sequence    Int
+  name        String
+  address     String?
+  latitude    Decimal  @db.Decimal(10, 7)
+  longitude   Decimal  @db.Decimal(10, 7)
+  createdAt   DateTime @default(now()) @map("created_at")
+  ride        Ride     @relation(fields: [rideId], references: [id], onDelete: Cascade)
+
+  @@unique([rideId, sequence])
+  @@index([rideId, sequence])
+  @@map("ride_destinations")
 }
 
 model RideAssignment {

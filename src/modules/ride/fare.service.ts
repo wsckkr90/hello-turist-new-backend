@@ -9,6 +9,17 @@ export type RidePricingConfig = {
   updatedAt?: Date;
 };
 
+export type FareLeg = {
+  sequence: number;
+  from: { latitude: number; longitude: number };
+  to: { latitude: number; longitude: number };
+  distanceMeters: number;
+  durationSeconds: number;
+  baseFare: number;
+  distanceFare: number;
+  totalFare: number;
+};
+
 export type FareQuote = {
   currency: "INR";
   distanceMeters: number;
@@ -16,6 +27,12 @@ export type FareQuote = {
   baseFare: number;
   distanceFare: number;
   totalFare: number;
+  legs: FareLeg[];
+};
+
+export type FareStop = {
+  latitude: number;
+  longitude: number;
 };
 
 const DEFAULT_PRICING: RidePricingConfig = {
@@ -62,17 +79,45 @@ export async function updateRidePricing(input: Partial<RidePricingConfig>): Prom
   return { ...parsePricing(row.value), updatedAt: row.updatedAt };
 }
 
-export async function calculateFare(origin: { latitude: number; longitude: number }, destination: { latitude: number; longitude: number }): Promise<FareQuote> {
+export async function calculateFare(
+  origin: FareStop,
+  destination: FareStop,
+  intermediateStops: FareStop[] = [],
+): Promise<FareQuote> {
   const { baseFare, perKm, minimumFare } = await getRidePricing();
-  const route = await new GooglePlaceRouteAdapter().getRoute(origin, destination);
-  const distanceFare = (route.distanceMeters / 1000) * perKm;
-  const totalFare = Math.max(minimumFare, baseFare + distanceFare);
+  const points = [origin, ...intermediateStops, destination];
+  const adapter = new GooglePlaceRouteAdapter();
+  const legs: FareLeg[] = [];
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const from = points[index];
+    const to = points[index + 1];
+    const route = await adapter.getRoute(from, to);
+    const distanceFare = (route.distanceMeters / 1000) * perKm;
+    const totalFare = Math.max(minimumFare, baseFare + distanceFare);
+    legs.push({
+      sequence: index + 1,
+      from,
+      to,
+      distanceMeters: route.distanceMeters,
+      durationSeconds: route.durationSeconds,
+      baseFare: money(baseFare),
+      distanceFare: money(distanceFare),
+      totalFare: money(totalFare),
+    });
+  }
+
+  const distanceMeters = legs.reduce((sum, leg) => sum + leg.distanceMeters, 0);
+  const durationSeconds = legs.reduce((sum, leg) => sum + leg.durationSeconds, 0);
+  const totalFare = legs.reduce((sum, leg) => sum + leg.totalFare, 0);
+  const distanceFare = legs.reduce((sum, leg) => sum + leg.distanceFare, 0);
   return {
     currency: "INR",
-    distanceMeters: route.distanceMeters,
-    durationSeconds: route.durationSeconds,
-    baseFare: money(baseFare),
+    distanceMeters,
+    durationSeconds,
+    baseFare: money(legs.reduce((sum, leg) => sum + leg.baseFare, 0)),
     distanceFare: money(distanceFare),
     totalFare: money(totalFare),
+    legs,
   };
 }

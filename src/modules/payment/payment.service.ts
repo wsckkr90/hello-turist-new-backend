@@ -51,15 +51,19 @@ export async function createRazorpayOrder(userId: string, rideId: string) {
     // multiple Razorpay orders before the unique payment row is committed.
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${rideId}))`;
 
-    const ride = await tx.ride.findUnique({ where: { id: rideId } });
+    const ride = await tx.ride.findUnique({ where: { id: rideId }, include: { destinations: { orderBy: { sequence: "asc" } } } });
     if (!ride) throw new Error("RIDE_NOT_FOUND");
     if (ride.riderId !== userId) throw new Error("FORBIDDEN");
     if (ride.status === "CANCELLED") throw new Error("RIDE_CANCELLED");
 
-    const fare = await calculateFare(
-      { latitude: Number(ride.pickupLatitude), longitude: Number(ride.pickupLongitude) },
-      { latitude: Number(ride.dropoffLatitude), longitude: Number(ride.dropoffLongitude) },
-    );
+    const storedFare = ride.fareBreakdown;
+    const fare = ride.fareAmount !== null && storedFare && typeof storedFare === "object" && !Array.isArray(storedFare)
+      ? { ...(storedFare as Record<string, unknown>), totalFare: Number(ride.fareAmount), currency: ride.fareCurrency } as Awaited<ReturnType<typeof calculateFare>>
+      : await calculateFare(
+          { latitude: Number(ride.pickupLatitude), longitude: Number(ride.pickupLongitude) },
+          { latitude: Number(ride.dropoffLatitude), longitude: Number(ride.dropoffLongitude) },
+          ride.destinations.map((stop) => ({ latitude: Number(stop.latitude), longitude: Number(stop.longitude) })),
+        );
     if (fare.currency !== "INR") throw new Error("RAZORPAY_CURRENCY_UNSUPPORTED");
 
     const existing = await tx.payment.findUnique({ where: { rideId } });
@@ -126,13 +130,20 @@ export async function verifyRazorpayPayment(userId: string, input: VerifyRazorpa
 }
 
 export async function createPayment(userId: string, input: CreatePaymentInput) {
-  const ride = await prisma.ride.findUnique({ where: { id: input.rideId } });
+  const ride = await prisma.ride.findUnique({ where: { id: input.rideId }, include: { destinations: { orderBy: { sequence: "asc" } } } });
   if (!ride) throw new Error("RIDE_NOT_FOUND");
   if (ride.riderId !== userId) throw new Error("FORBIDDEN");
   if (ride.status === "CANCELLED") throw new Error("RIDE_CANCELLED");
   const existing = await prisma.payment.findUnique({ where: { rideId: input.rideId } });
   if (existing) throw new Error("PAYMENT_ALREADY_EXISTS");
-  const fare = await calculateFare({ latitude: Number(ride.pickupLatitude), longitude: Number(ride.pickupLongitude) }, { latitude: Number(ride.dropoffLatitude), longitude: Number(ride.dropoffLongitude) });
+  const storedFare = ride.fareBreakdown;
+  const fare = ride.fareAmount !== null && storedFare && typeof storedFare === "object" && !Array.isArray(storedFare)
+    ? { ...(storedFare as Record<string, unknown>), totalFare: Number(ride.fareAmount), currency: ride.fareCurrency } as Awaited<ReturnType<typeof calculateFare>>
+    : await calculateFare(
+        { latitude: Number(ride.pickupLatitude), longitude: Number(ride.pickupLongitude) },
+        { latitude: Number(ride.dropoffLatitude), longitude: Number(ride.dropoffLongitude) },
+        ride.destinations.map((stop) => ({ latitude: Number(stop.latitude), longitude: Number(stop.longitude) })),
+      );
   if (input.currency !== fare.currency || Math.abs(input.amount - fare.totalFare) > 0.01) throw new Error("PAYMENT_AMOUNT_MISMATCH");
   return prisma.payment.create({ data: { rideId: input.rideId, payerId: userId, amount: fare.totalFare, currency: fare.currency, provider: input.provider, metadata: { ...(input.metadata ?? {}), fare } }, include: paymentInclude });
 }
