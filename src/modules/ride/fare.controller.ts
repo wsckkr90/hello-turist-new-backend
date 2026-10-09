@@ -3,6 +3,9 @@ import { errorResponse, successResponse } from "../../core/api-response";
 import { calculateFare } from "./fare.service";
 
 function coordinate(value: unknown, name: string): number {
+  if (value === null || value === undefined || (typeof value === "string" && value.trim() === "")) {
+    throw new Error(`INVALID_${name}`);
+  }
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) throw new Error(`INVALID_${name}`);
   return parsed;
