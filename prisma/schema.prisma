@@ -15,6 +15,7 @@ model SupportTicket {
   status    SupportTicketStatus    @default(OPEN)
   createdAt DateTime               @default(now()) @map("created_at")
   updatedAt DateTime               @updatedAt @map("updated_at")
+  user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages  SupportTicketMessage[]
 
   @@index([userId, createdAt])
@@ -66,6 +67,7 @@ model User {
   notifications        Notification[]
   payoutAccount        DriverPayoutAccount?
   driverPayouts        DriverPayout[]
+  supportTickets       SupportTicket[]
 
   @@map("users")
 }
