@@ -48,6 +48,9 @@ jobs:
       - name: Apply migrations to disposable PostgreSQL
         run: npx prisma migrate deploy
 
+      - name: Verify migration state
+        run: npx prisma migrate status
+
       - name: Build and type-check
         run: npm run build
 
