@@ -1,35 +1,46 @@
 name: Backend CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
-
-permissions:
-  contents: read
+  push:
+    branches: [main]
 
 jobs:
-  build:
+  validate:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hello_kurukshetra
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hello_kurukshetra"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hello_kurukshetra
+      NODE_ENV: test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
-      - name: Install dependencies
+      - name: Install dependencies and generate Prisma Client
         run: npm ci
-
-      - name: Build and type-check
+      - name: Validate Prisma schema
+        run: npx prisma validate
+      - name: Apply all migrations to disposable PostgreSQL
+        run: npx prisma migrate deploy
+      - name: Build TypeScript backend
         run: npm run build
-
-      - name: Docker build
-        run: docker build -t hello-turist-backend:ci .
-
-      - name: Verify Docker image metadata
-        run: docker image inspect hello-turist-backend:ci --format "{{.Config.ExposedPorts}}"
+      - name: Run ride transition tests
+        run: npm run test:ride-transition
