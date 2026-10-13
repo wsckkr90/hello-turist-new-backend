@@ -33,7 +33,9 @@ export async function createAdminSupportTeamContact(req: Request, res: Response)
 
 export async function updateAdminSupportTeamContact(req: Request, res: Response) {
   try {
-    const data = await updateSupportTeamContact(req.params.id, req.body ?? {});
+    const contactId = typeof req.params.id === "string" ? req.params.id : req.params.id[0];
+    if (!contactId) return failure(res, req, 400, "INVALID_CONTACT_ID", "Invalid support contact id");
+    const data = await updateSupportTeamContact(contactId, req.body ?? {});
     await writeAuditLog({ actorUserId: req.user!.id, action: "SUPPORT_CONTACT_UPDATED", entityType: "SUPPORT_TEAM_CONTACT", entityId: data.id, metadata: { name: data.name, phone: data.phone, isActive: data.isActive, isPrimary: data.isPrimary }, requestId: req.requestId });
     return res.status(200).json({ success: true, data, error: null, requestId: req.requestId });
   } catch (error) {
