@@ -106,7 +106,13 @@ async function attachFirebaseIdentity(userId: string, firebaseUid: string, phone
 
   await prisma.user.update({
     where: { id: userId },
-    data: { firebaseUid, phone },
+    data: {
+      firebaseUid,
+      phone,
+      phoneVerificationStatus: "VERIFIED",
+      phoneVerifiedAt: new Date(),
+      phoneVerificationMethod: "FIREBASE",
+    },
   });
 }
 
@@ -173,6 +179,9 @@ export async function registerUserWithPhone(input: {
       data: {
         phone: requestedPhone,
         firebaseUid,
+        phoneVerificationStatus: "VERIFIED",
+        phoneVerifiedAt: new Date(),
+        phoneVerificationMethod: "FIREBASE",
       },
     });
   } catch (error) {

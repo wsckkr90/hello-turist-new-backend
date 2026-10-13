@@ -53,6 +53,9 @@ model User {
   deletedAt         DateTime?  @map("deleted_at")
   termsAcceptedAt   DateTime?  @map("terms_accepted_at")
   termsVersion      String?    @map("terms_version")
+  phoneVerificationStatus String @default("PENDING") @map("phone_verification_status")
+  phoneVerifiedAt DateTime? @map("phone_verified_at")
+  phoneVerificationMethod String? @map("phone_verification_method")
 
   refreshSessions      RefreshSession[]
   roles                UserRoleAssignment[]

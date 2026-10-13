@@ -18,6 +18,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Registration terms-consent regression tests
+        run: npx tsx tests/social-auth-consent.test.ts
+      - name: Admin phone-verification schema regression tests
+        run: npx tsx tests/admin-phone-verification-schema.test.ts
       - name: Security middleware tests
         run: npx tsx tests/security.middleware.test.ts
       - name: E2E smoke
