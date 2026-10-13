@@ -31,7 +31,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function googleAccessToken() {
   const email = process.env.FCM_SERVICE_ACCOUNT_EMAIL?.trim();
-  const privateKey = process.env.FCM_PRIVATE_KEY?.replace(/\\\\n/g, "\\n");
+  const privateKey = process.env.FCM_PRIVATE_KEY?.replace(/\\n/g, "\n");
   if (!email || !privateKey) return null;
   const now = Math.floor(Date.now() / 1000);
   const assertion = jwt.sign({ iss: email, scope: "https://www.googleapis.com/auth/firebase.messaging", aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600 }, privateKey, { algorithm: "RS256" });
