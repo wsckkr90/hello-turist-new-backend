@@ -1,12 +1,7 @@
 import { Request, Response } from "express";
-import { z } from "zod";
 import { prisma } from "../../core/prisma";
+import { adminPhoneVerificationSchema } from "./phone-verification.schema";
 import { writeAuditLog } from "./audit.service";
-
-const schema = z.object({
-  method: z.enum(["SMS", "CALL", "IN_PERSON"]),
-  note: z.string().trim().max(500).optional(),
-});
 
 function errorResponse(req: Request, res: Response, status: number, code: string, message: string) {
   return res.status(status).json({ success: false, data: null, error: { code, message }, requestId: req.requestId });
@@ -16,7 +11,7 @@ function errorResponse(req: Request, res: Response, status: number, code: string
 export async function verifyUserPhoneByAdmin(req: Request, res: Response) {
   const userId = typeof req.params.userId === "string" ? req.params.userId : undefined;
   if (!userId) return errorResponse(req, res, 400, "INVALID_USER_ID", "User id is required");
-  const parsed = schema.safeParse(req.body);
+  const parsed = adminPhoneVerificationSchema.safeParse(req.body);
   if (!parsed.success) return errorResponse(req, res, 400, "VALIDATION_ERROR", "Choose SMS, CALL, or IN_PERSON and provide a valid note");
 
   try {
