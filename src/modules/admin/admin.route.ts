@@ -20,6 +20,7 @@ import { listAdminNotifications, sendAdminNotification } from "./notification.co
 import { listAdminPromotionsController, createAdminPromotionController, updateAdminPromotionController, deactivateAdminPromotionController } from "./promotion.controller";
 import { listAdminSupportTicketsController, replyAdminSupportTicketController, updateAdminSupportTicketController } from "./support-admin.controller";
 import { verifyUserPhoneByAdmin } from "./phone-verification.controller";
+import { createAdminSupportTeamContact, listAdminSupportTeamContacts, updateAdminSupportTeamContact } from "./support-team.controller";
 
 const router = Router();
 const admin = [authMiddleware, adminMiddleware] as const;
@@ -65,6 +66,9 @@ router.post("/emergency/incidents/:id/responders", ...admin, requirePermission("
 router.patch("/emergency/responders/:assignmentId", ...admin, requirePermission("emergency.manage"), adminMutationLimit, idempotencyMiddleware(), responderStatusAdmin);
 router.get("/rbac/users/:userId/permissions", ...admin, requirePermission("admin.permissions.read"), listAdminPermissions);
 router.put("/rbac/users/:userId/permissions", ...admin, requirePermission("admin.permissions.manage"), adminMutationLimit, idempotencyMiddleware(), updateAdminPermissions);
+router.get("/support/contacts", ...admin, requirePermission("support.read"), listAdminSupportTeamContacts);
+router.post("/support/contacts", ...admin, requirePermission("support.manage"), adminMutationLimit, idempotencyMiddleware(), createAdminSupportTeamContact);
+router.patch("/support/contacts/:id", ...admin, requirePermission("support.manage"), adminMutationLimit, idempotencyMiddleware(), updateAdminSupportTeamContact);
 router.get("/support/tickets", ...admin, requirePermission("support.read"), listAdminSupportTicketsController);
 router.post("/support/tickets/:id/reply", ...admin, requirePermission("support.manage"), adminMutationLimit, idempotencyMiddleware(), replyAdminSupportTicketController);
 router.patch("/support/tickets/:id/status", ...admin, requirePermission("support.manage"), adminMutationLimit, idempotencyMiddleware(), updateAdminSupportTicketController);
