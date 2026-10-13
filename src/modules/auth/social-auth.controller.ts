@@ -11,6 +11,8 @@ const registerWithPhoneSchema = z.object({
   username: z.string().trim().min(3).max(80).regex(/^[a-zA-Z0-9_.-]+$/),
   email: z.string().email().optional(),
   password: z.string().min(8).max(128),
+  termsAccepted: z.literal(true),
+  termsVersion: z.string().trim().min(1).max(40).default("2026-10-13"),
   phone: z.string().trim().min(8).max(20),
   idToken: z.string().trim().min(20),
 });
@@ -19,6 +21,9 @@ const googleAuthSchema = z.object({
   idToken: z.string().trim().min(20),
   phone: z.string().trim().min(8).max(20).optional(),
   phoneIdToken: z.string().trim().min(20).optional(),
+  // Required only when this Google identity creates a new account.
+  termsAccepted: z.literal(true).optional(),
+  termsVersion: z.string().trim().min(1).max(40).optional(),
 });
 
 function sendError(res: Response, req: Request, status: number, code: string, message: string) {
@@ -76,6 +81,7 @@ export async function googleAuth(req: Request, res: Response) {
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === "INVALID_PHONE_NUMBER") return sendError(res, req, 400, error.message, "Enter a valid mobile number");
+      if (error.message === "TERMS_CONSENT_REQUIRED") return sendError(res, req, 400, error.message, "Accept the terms before creating your account");
       if (error.message === "GOOGLE_PHONE_REQUIRED" || error.message === "GOOGLE_PHONE_VERIFICATION_REQUIRED") return sendError(res, req, 400, error.message, "Verify your mobile number before creating your Google account");
       if (error.message === "PHONE_ALREADY_EXISTS") return sendError(res, req, 409, error.message, "Phone number is already registered to another account");
       if (error.message === "GOOGLE_ACCOUNT_ALREADY_LINKED") return sendError(res, req, 409, error.message, "Google account is already linked to another account");
