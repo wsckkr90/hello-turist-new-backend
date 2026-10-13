@@ -14,6 +14,8 @@ export const registerSchema = z.object({
   email: z.string().email().optional(),
 
   password: z.string().min(8).max(128),
+  termsAccepted: z.literal(true),
+  termsVersion: z.string().trim().min(1).max(40).default("2026-10-13"),
 });
 
 export const loginSchema = z.object({
