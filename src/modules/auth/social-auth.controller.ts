@@ -6,7 +6,7 @@ import {
   registerUserWithPhone,
 } from "./social-auth.service";
 
-const registerWithPhoneSchema = z.object({
+export const registerWithPhoneSchema = z.object({
   name: z.string().trim().min(2).max(120),
   username: z.string().trim().min(3).max(80).regex(/^[a-zA-Z0-9_.-]+$/),
   email: z.string().email().optional(),
@@ -17,7 +17,7 @@ const registerWithPhoneSchema = z.object({
   idToken: z.string().trim().min(20),
 });
 
-const googleAuthSchema = z.object({
+export const googleAuthSchema = z.object({
   idToken: z.string().trim().min(20),
   phone: z.string().trim().min(8).max(20).optional(),
   phoneIdToken: z.string().trim().min(20).optional(),
