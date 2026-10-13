@@ -18,7 +18,8 @@
     "qa": "npm run build && npm run test:ride-transition && npx tsx tests/security.middleware.test.ts && npm run test:e2e-smoke && npm run test:core-e2e && npm run test:payment-webhook-e2e && npm run test:notification-e2e",
     "postinstall": "prisma generate",
     "create-admin": "tsx scripts/create-admin.ts",
-    "test:ride-transition": "tsx tests/ride-transition.test.ts"
+    "test:ride-transition": "tsx tests/ride-transition.test.ts",
+    "test:social-auth-consent": "tsx tests/social-auth-consent.test.ts"
   },
   "keywords": [],
   "author": "",
