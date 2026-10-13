@@ -54,7 +54,7 @@ async function sendSmsFallback(userId: string, title: string, body: string, data
   const details = data && typeof data === "object" ? data as Record<string, unknown> : {};
   if (details.status !== "OFFERED" || typeof details.rideId !== "string") return false;
 
-  const baseUrl = process.env.SMS_GATEWAY_BASE_URL?.trim().replace(/\\/$/, "");
+  const baseUrl = process.env.SMS_GATEWAY_BASE_URL?.trim().replace(/\/$/, "");
   const apiKey = process.env.SMS_GATEWAY_API_KEY?.trim();
   if (!baseUrl || !apiKey) return false;
 
