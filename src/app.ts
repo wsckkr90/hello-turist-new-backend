@@ -77,7 +77,7 @@ app.get("/api/v1/branding", async (_req, res, next) => {
 /** Public, non-secret contact details used by clients to launch SMS or the phone dialer. */
 app.get("/api/v1/support/contact", (req, res) => {
   const phone = process.env.ADMIN_SUPPORT_PHONE?.trim();
-  if (!phone || !/^\\+[1-9]\\d{7,14}$/.test(phone)) {
+  if (!phone || !/^\+[1-9]\d{7,14}$/.test(phone)) {
     return res.status(503).json({
       success: false,
       data: null,
