@@ -2,6 +2,7 @@ import { Prisma, NotificationType } from "../../generated/prisma/client";
 import { prisma } from "../../core/prisma";
 import jwt from "jsonwebtoken";
 import type { NotificationIdInput } from "./notification.schema";
+import { isDriverOffer, isUnregisteredFcmResponse, normalizeSmsGatewayBaseUrl } from "./notification-delivery-policy";
 
 export async function listNotifications(userId: string) {
   return prisma.notification.findMany({ where: { userId }, orderBy: { createdAt: "desc" } });
@@ -51,10 +52,10 @@ async function googleAccessToken() {
 
 async function sendSmsFallback(userId: string, title: string, body: string, data?: Prisma.InputJsonValue) {
   // SMS is deliberately restricted to time-sensitive driver offers; ordinary notifications must not create SMS cost.
-  const details = data && typeof data === "object" ? data as Record<string, unknown> : {};
-  if (details.status !== "OFFERED" || typeof details.rideId !== "string") return false;
+  if (!isDriverOffer(data)) return false;
+  const details = data;
 
-  const baseUrl = process.env.SMS_GATEWAY_BASE_URL?.trim().replace(/\/$/, "");
+  const baseUrl = normalizeSmsGatewayBaseUrl(process.env.SMS_GATEWAY_BASE_URL);
   const apiKey = process.env.SMS_GATEWAY_API_KEY?.trim();
   if (!baseUrl || !apiKey) return false;
 
@@ -85,7 +86,10 @@ async function sendSmsFallback(userId: string, title: string, body: string, data
 
 async function pushToUser(userId: string, title: string, body: string, data?: Prisma.InputJsonValue) {
   const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
-  const token = await googleAccessToken();
+  const token = await googleAccessToken().catch((error) => {
+    console.error("FCM access-token creation failed; allowing the configured SMS fallback", error);
+    return null;
+  });
   if (!projectId || !token) {
     await sendSmsFallback(userId, title, body, data).catch((error) => {
       console.error("SMS fallback setup failed", error);
@@ -115,11 +119,19 @@ async function pushToUser(userId: string, title: string, body: string, data?: Pr
           signal: AbortSignal.timeout(5000),
         });
         if (response.ok) return true;
-        if (response.status === 404 || response.status === 400) {
-          await prisma.$executeRaw`UPDATE notification_devices SET enabled=false,updated_at=NOW() WHERE fcm_token=${fcm_token}`;
-          return false;
+        if (!response.ok) {
+          let responseBody: unknown = null;
+          try {
+            responseBody = await response.json();
+          } catch {
+            // Some upstream failures return an empty or non-JSON body.
+          }
+          if (isUnregisteredFcmResponse(responseBody)) {
+            await prisma.$executeRaw`UPDATE notification_devices SET enabled=false,updated_at=NOW() WHERE fcm_token=${fcm_token}`;
+            return false;
+          }
+          if (response.status < 500 && response.status !== 429) return false;
         }
-        if (response.status < 500 && response.status !== 429) return false;
       } catch { /* retry timeout/network errors */ }
       if (attempt < 2) await sleep(300 * (attempt + 1));
     }
