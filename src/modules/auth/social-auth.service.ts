@@ -173,6 +173,9 @@ export async function registerUserWithPhone(input: {
       data: {
         phone: requestedPhone,
         firebaseUid,
+        phoneVerificationStatus: "VERIFIED",
+        phoneVerifiedAt: new Date(),
+        phoneVerificationMethod: "FIREBASE",
       },
     });
   } catch (error) {
