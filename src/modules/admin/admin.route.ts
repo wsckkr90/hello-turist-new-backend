@@ -41,7 +41,7 @@ router.get("/verification/requests", ...admin, requirePermission("drivers.verify
 router.get("/verification/requests/:id", ...admin, requirePermission("drivers.verify", "guides.verify"), getVerificationRequestById);
 router.get("/people", ...admin, requirePermission("users.read"), getPeople);
 router.get("/people/:id", ...admin, requirePermission("users.read"), getPersonById);
-router.post("/users/:userId/phone-verification", ...admin, requirePermission("users.read"), adminMutationLimit, idempotencyMiddleware(), verifyUserPhoneByAdmin);
+router.post("/users/:userId/phone-verification", ...admin, requirePermission("users.manage"), adminMutationLimit, idempotencyMiddleware(), verifyUserPhoneByAdmin);
 router.patch("/users/:userId/roles/:role", ...admin, requirePermission("drivers.verify", "guides.verify"), adminMutationLimit, idempotencyMiddleware(), updateUserRoleVerification);
 router.patch("/verification/requests/:id", ...admin, requirePermission("drivers.verify", "guides.verify"), adminMutationLimit, idempotencyMiddleware(), decideVerification);
 router.get("/branding", ...admin, requirePermission("branding.read"), getBrandingController);
