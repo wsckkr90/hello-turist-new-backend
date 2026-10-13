@@ -17,6 +17,8 @@ export async function registerUser(input: {
   username: string;
   email?: string;
   password: string;
+  termsAccepted: true;
+  termsVersion: string;
 }) {
   const name = input.name.trim();
   const username = input.username.trim().toLowerCase();
@@ -52,6 +54,8 @@ export async function registerUser(input: {
       username,
       email,
       passwordHash,
+      termsAcceptedAt: new Date(),
+      termsVersion: input.termsVersion,
     },
     select: {
       id: true,

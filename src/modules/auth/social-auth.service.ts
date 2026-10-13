@@ -136,6 +136,8 @@ export async function registerUserWithPhone(input: {
   password: string;
   phone: string;
   idToken: string;
+  termsAccepted: true;
+  termsVersion: string;
 }) {
   const requestedPhone = validatePhone(input.phone);
   if (!input.idToken.trim()) throw new Error("INVALID_FIREBASE_ID_TOKEN");
@@ -161,6 +163,8 @@ export async function registerUserWithPhone(input: {
     username: input.username,
     email: input.email,
     password: input.password,
+    termsAccepted: input.termsAccepted,
+    termsVersion: input.termsVersion,
   });
 
   try {
@@ -183,6 +187,8 @@ export async function loginWithGoogle(input: {
   idToken: string;
   phone?: string;
   phoneIdToken?: string;
+  termsAccepted?: true;
+  termsVersion?: string;
 }) {
   if (!input.idToken.trim()) throw new Error("INVALID_FIREBASE_ID_TOKEN");
 
@@ -254,11 +260,17 @@ export async function loginWithGoogle(input: {
       username = `${base.slice(0, 70 - String(suffix).length)}_${suffix}`;
     }
 
+    if (input.termsAccepted !== true || !input.termsVersion?.trim()) {
+      throw new Error("TERMS_CONSENT_REQUIRED");
+    }
+
     const created = await registerUser({
       name,
       username,
       email,
       password: crypto.randomBytes(48).toString("base64url"),
+      termsAccepted: input.termsAccepted,
+      termsVersion: input.termsVersion.trim(),
     });
 
     userId = created.id;
