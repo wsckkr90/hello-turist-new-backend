@@ -38,8 +38,8 @@ export async function searchAndOfferGuide(userId: string, rideId: string, guideI
     await tx.rideEvent.create({ data: { rideId, actorUserId: userId, type: "DRIVER_ASSIGNED", payload: { role: "GUIDE", guideId, assignmentId: a.id } } });
     return a;
   });
-  void notifyUser(guideId, "New guide assignment", "You have a new guide assignment. Please accept or reject it.", { rideId, assignmentId: assignment.id, status: assignment.status }).catch(() => undefined);
-  void notifyUser(ride.riderId, "Guide assigned", "A guide has been offered for your trip.", { rideId, guideId, status: assignment.status }).catch(() => undefined);
+  void notifyUser(guideId, "New guide assignment", "You have a new guide assignment. Please accept or reject it.", { destination: "RIDE", notification_type: "RIDE", rideId, assignmentId: assignment.id, status: assignment.status }).catch(() => undefined);
+  void notifyUser(ride.riderId, "Guide assigned", "A guide has been offered for your trip.", { destination: "RIDE", notification_type: "RIDE", rideId, guideId, status: assignment.status }).catch(() => undefined);
   return assignment;
 }
 
@@ -68,7 +68,7 @@ export async function acceptGuideAssignment(userId: string, rideId: string, assi
     await tx.rideEvent.create({ data: { rideId, actorUserId: userId, type: "DRIVER_ACCEPTED", payload: { role: "GUIDE", assignmentId } } });
     return tx.guideAssignment.findUnique({ where: { id: assignmentId } });
   }, { isolationLevel: "Serializable" });
-  void notifyUser(ride.riderId, "Guide accepted", "Your guide accepted the trip.", { rideId, assignmentId, status: result?.status }).catch(() => undefined);
+  void notifyUser(ride.riderId, "Guide accepted", "Your guide accepted the trip.", { destination: "RIDE", notification_type: "RIDE", rideId, assignmentId, status: result?.status }).catch(() => undefined);
   return result;
 }
 
