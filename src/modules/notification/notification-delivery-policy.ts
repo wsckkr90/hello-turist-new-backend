@@ -12,7 +12,7 @@ export function isDriverOffer(data: unknown): data is DriverOfferPayload {
 
 /** Removes whitespace and all trailing slashes from the operator-configured gateway origin. */
 export function normalizeSmsGatewayBaseUrl(value: string | undefined | null): string {
-  return typeof value === "string" ? value.trim().replace(/\\/+$/, "") : "";
+  return typeof value === "string" ? value.trim().replace(/\/+$/, "") : "";
 }
 
 /** FCM invalid-argument errors can indicate a bad payload; disable a device only for explicit UNREGISTERED responses. */
