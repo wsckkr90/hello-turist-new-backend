@@ -24,6 +24,8 @@ jobs:
         run: npx tsx tests/admin-phone-verification-schema.test.ts
       - name: Notification-delivery policy tests
         run: npx tsx tests/notification-delivery-policy.test.ts
+      - name: Public support-contact configuration tests
+        run: npx tsx tests/support-contact.test.ts
       - name: Security middleware tests
         run: npx tsx tests/security.middleware.test.ts
       - name: E2E smoke
