@@ -73,6 +73,27 @@ app.get("/api/v1/branding", async (_req, res, next) => {
   try { return res.json({ success: true, data: await getBranding(), error: null }); }
   catch (error) { return next(error); }
 });
+
+/** Public, non-secret contact details used by clients to launch SMS or the phone dialer. */
+app.get("/api/v1/support/contact", (req, res) => {
+  const phone = process.env.ADMIN_SUPPORT_PHONE?.trim();
+  if (!phone || !/^\\+[1-9]\\d{7,14}$/.test(phone)) {
+    return res.status(503).json({
+      success: false,
+      data: null,
+      error: { code: "SUPPORT_CONTACT_NOT_CONFIGURED", message: "Admin support contact is not configured" },
+      requestId: req.requestId,
+    });
+  }
+  res.setHeader("Cache-Control", "public, max-age=300");
+  return res.status(200).json({
+    success: true,
+    data: { phone, smsEnabled: true, callEnabled: true },
+    error: null,
+    requestId: req.requestId,
+  });
+});
+
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/users", usersRouter);
 app.use("/api/v1/admin", adminRouter);
