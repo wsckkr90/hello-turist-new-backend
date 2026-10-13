@@ -704,3 +704,17 @@ enum Gender {
   NON_BINARY
   PREFER_NOT_TO_SAY
 }
+
+
+model SupportTeamContact {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  phone     String   @unique
+  isActive  Boolean  @default(true) @map("is_active")
+  isPrimary Boolean  @default(false) @map("is_primary")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive, isPrimary])
+  @@map("support_team_contacts")
+}
