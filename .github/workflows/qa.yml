@@ -18,6 +18,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Notification-delivery policy tests
+        run: npx tsx tests/notification-delivery-policy.test.ts
       - name: Security middleware tests
         run: npx tsx tests/security.middleware.test.ts
       - name: E2E smoke
