@@ -8,7 +8,7 @@ assert.equal(getSupportContact("7095101130"), null, "a phone number without an e
 assert.equal(getSupportContact("not-a-phone"), null, "malformed public numbers must be rejected");
 assert.deepEqual(
   getSupportContact(" +917095101130 "),
-  { phone: "+917095101130", smsEnabled: true, callEnabled: true },
+  { phone: "+917095101130", smsEnabled: true, callEnabled: true, manualVerificationAvailable: true },
   "a valid E.164 support phone should be normalized and enable client dialer/SMS actions"
 );
 assert.equal(getSupportContact("+0123456789"), null, "E.164 phone numbers cannot use zero as the country-code first digit");

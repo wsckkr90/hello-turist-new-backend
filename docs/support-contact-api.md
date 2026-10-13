@@ -12,3 +12,17 @@ Configure `ADMIN_SUPPORT_PHONE` in the backend runtime environment using a verif
 ## Cloud Run configuration
 
 To expose this contact in production, set the GitHub repository variable `ADMIN_SUPPORT_PHONE` to the approved public support phone number in E.164 format. The deployment workflow passes this variable to Cloud Run. If it is empty or invalid, the endpoint intentionally responds with HTTP 503; no demo or personal phone number is supplied by default.
+
+
+## OTP fallback: manual team verification
+
+When a valid `ADMIN_SUPPORT_PHONE` is configured, the response also includes
+`manualVerificationAvailable: true`. Android can show **Send SMS** and **Call team**
+after an OTP attempt. These actions open the user's own messaging app or dialer;
+the backend does not send SMS, start calls, or mark the phone verified automatically.
+
+An admin must confirm the user's identity and then use the protected
+`POST /api/v1/admin/users/:userId/phone-verification` endpoint with method
+`SMS` or `CALL`. That endpoint currently applies only to an existing ACTIVE user
+with a phone number on their account. Contacting support alone never changes the
+verification status.
