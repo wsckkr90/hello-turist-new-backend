@@ -29,7 +29,7 @@ import languageRouter from "./modules/language/language.route";
 import discoveryRouter from "./modules/discovery/discovery.route";
 import homeContentRouter from "./modules/home-content/home-content.route";
 import { getBranding } from "./modules/admin/branding.service";
-import { getSupportContact } from "./modules/support/support-contact";
+import { listPublicSupportContacts } from "./modules/support/support-team.service";
 import { errorHandler } from "./middleware/error-handler";
 import { securityHeaders } from "./middleware/security";
 import { connectRedis, redis } from "./core/redis";
@@ -74,18 +74,28 @@ app.get("/api/v1/branding", async (_req, res, next) => {
   try { return res.json({ success: true, data: await getBranding(), error: null }); }
   catch (error) { return next(error); }
 });
-app.get("/api/v1/support/contact", (req, res) => {
-  const contact = getSupportContact(process.env.ADMIN_SUPPORT_PHONE);
-  if (!contact) {
+app.get("/api/v1/support/contact", async (req, res) => {
+  try {
+    const contact = await listPublicSupportContacts(process.env.ADMIN_SUPPORT_PHONE);
+    if (!contact) {
+      return res.status(503).json({
+        success: false,
+        data: null,
+        error: { code: "SUPPORT_CONTACT_NOT_CONFIGURED", message: "Support contact is not configured" },
+        requestId: req.requestId,
+      });
+    }
+    res.setHeader("Cache-Control", "public, max-age=60");
+    return res.status(200).json({ success: true, data: contact, error: null, requestId: req.requestId });
+  } catch (error) {
+    console.error("PUBLIC_SUPPORT_CONTACT_READ_ERROR:", error);
     return res.status(503).json({
       success: false,
       data: null,
-      error: { code: "SUPPORT_CONTACT_NOT_CONFIGURED", message: "Support contact is not configured" },
+      error: { code: "SUPPORT_CONTACT_UNAVAILABLE", message: "Support contact is temporarily unavailable" },
       requestId: req.requestId,
     });
   }
-  res.setHeader("Cache-Control", "public, max-age=300");
-  return res.status(200).json({ success: true, data: contact, error: null, requestId: req.requestId });
 });
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/users", usersRouter);

@@ -1,28 +1,50 @@
-# Public support contact API
+# Support contact API and admin management
 
-The public support-contact endpoint is `GET /api/v1/support/contact`.
+## Public support contact
 
-Configure `ADMIN_SUPPORT_PHONE` in the backend runtime environment using a verified public support number in E.164 format (for example, `+91...`). The repository's `.env.example` intentionally leaves this value blank; do not copy a personal or unverified number into production configuration.
+The public endpoint is `GET /api/v1/support/contact`.
 
-- Returns HTTP 200 with `data.phone`, `data.smsEnabled`, and `data.callEnabled` when a valid number is configured.
-- Returns HTTP 503 with `SUPPORT_CONTACT_NOT_CONFIGURED` if the value is missing or invalid.
-- The endpoint never returns a made-up fallback number or any SMS gateway API key.
-- Android clients should use the returned number to open the device's default dialer or SMS composer with an explicit user action. It does not send a message silently.
+Active contacts in the `support_team_contacts` database table take precedence over
+`ADMIN_SUPPORT_PHONE`. The response exposes the primary active contact as
+`data.phone` for backwards compatibility and includes `data.contacts` with active
+team contacts (`id`, `name`, `phone`, `isPrimary`). The API also returns
+`smsEnabled`, `callEnabled`, and `manualVerificationAvailable` as `true`.
 
-## Cloud Run configuration
+If no active database contacts exist, a valid `ADMIN_SUPPORT_PHONE` E.164 value is
+used as a legacy fallback. If neither source is configured, the endpoint returns
+HTTP 503 with `SUPPORT_CONTACT_NOT_CONFIGURED`. The endpoint never invents a
+phone number or exposes SMS gateway credentials.
 
-To expose this contact in production, set the GitHub repository variable `ADMIN_SUPPORT_PHONE` to the approved public support phone number in E.164 format. The deployment workflow passes this variable to Cloud Run. If it is empty or invalid, the endpoint intentionally responds with HTTP 503; no demo or personal phone number is supplied by default.
+Android clients should open the user's SMS composer or dialer only after an
+explicit user action. These actions do not send a message silently and never
+mark a phone number verified automatically.
 
+## Admin contact management
 
-## OTP fallback: manual team verification
+All endpoints require an authenticated admin session and the relevant RBAC
+permission. They are mounted under `/api/v1/admin`.
 
-When a valid `ADMIN_SUPPORT_PHONE` is configured, the response also includes
-`manualVerificationAvailable: true`. Android can show **Send SMS** and **Call team**
-after an OTP attempt. These actions open the user's own messaging app or dialer;
-the backend does not send SMS, start calls, or mark the phone verified automatically.
+- `GET /support/contacts` — list active and inactive support contacts
+  (requires `support.read`).
+- `POST /support/contacts` — add a contact with `name`, `phone` in E.164
+  format, and optional `isPrimary` (requires `support.manage`).
+- `PATCH /support/contacts/:id` — edit `name` / `phone`, toggle `isActive`,
+  or select `isPrimary` (requires `support.manage`).
 
-An admin must confirm the user's identity and then use the protected
-`POST /api/v1/admin/users/:userId/phone-verification` endpoint with method
-`SMS` or `CALL`. That endpoint currently applies only to an existing ACTIVE user
-with a phone number on their account. Contacting support alone never changes the
+Disabling is a soft change; records are not deleted. Phone numbers must be unique.
+At most one active contact can be primary. If the current primary is disabled,
+the service selects the oldest remaining active contact as primary. Mutations are
+rate-limited and written to the audit log.
+
+The schema change is delivered by the Prisma migration
+`20261014090000_add_support_team_contacts`. Deploy the backend and apply the
+migration with `npx prisma migrate deploy` before using the new admin screen.
+
+## Manual phone verification
+
+The support contact is only a way for the user to reach the team. An authorized
+admin must separately confirm identity and use
+`POST /api/v1/admin/users/:userId/phone-verification` with method `SMS` or
+`CALL`. That endpoint currently applies only to an existing ACTIVE user with a
+phone number on their account. Contacting support alone never changes the
 verification status.
