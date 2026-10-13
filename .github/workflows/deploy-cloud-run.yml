@@ -25,6 +25,8 @@ jobs:
       GCP_REGION: ${{ vars.GCP_REGION }}
       GAR_REPOSITORY: ${{ vars.GAR_REPOSITORY }}
       CLOUD_RUN_SERVICE: ${{ vars.CLOUD_RUN_SERVICE }}
+      # Public phone contact; optional until an approved number is configured in repository variables.
+      ADMIN_SUPPORT_PHONE: ${{ vars.ADMIN_SUPPORT_PHONE }}
 
     steps:
       - name: Checkout
@@ -88,7 +90,7 @@ jobs:
             --network "$VPC_NETWORK" \
             --subnet "$VPC_SUBNET" \
             --vpc-egress private-ranges-only \
-            --set-env-vars "NODE_ENV=production,PORT=8080,HOST=0.0.0.0" \
+            --set-env-vars "NODE_ENV=production,PORT=8080,HOST=0.0.0.0,ADMIN_SUPPORT_PHONE=${ADMIN_SUPPORT_PHONE}" \
             --set-secrets "DATABASE_URL=hello-turist-database-url:latest,REDIS_URL=hello-turist-redis-url:latest,ACCESS_TOKEN_SECRET=hello-turist-access-token-secret:latest,REFRESH_TOKEN_SECRET=hello-turist-refresh-token-secret:latest,GOOGLE_MAPS_API_KEY=hello-turist-google-maps-api-key:latest,FIREBASE_PROJECT_ID=hello-turist-firebase-project-id:latest,FCM_SERVICE_ACCOUNT_EMAIL=hello-turist-fcm-service-account-email:latest,FCM_PRIVATE_KEY=hello-turist-fcm-private-key:latest,RAZORPAY_KEY_ID=hello-turist-razorpay-key-id:latest,RAZORPAY_KEY_SECRET=hello-turist-razorpay-key-secret:latest,RAZORPAY_WEBHOOK_SECRET=hello-turist-razorpay-webhook-secret:latest,CLOUDINARY_CLOUD_NAME=hello-turist-cloudinary-cloud-name:latest,CLOUDINARY_API_KEY=hello-turist-cloudinary-api-key:latest,CLOUDINARY_API_SECRET=hello-turist-cloudinary-api-secret:latest" \
             --quiet
 
