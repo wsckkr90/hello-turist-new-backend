@@ -21,6 +21,7 @@ import { listAdminPromotionsController, createAdminPromotionController, updateAd
 import { listAdminSupportTicketsController, replyAdminSupportTicketController, updateAdminSupportTicketController } from "./support-admin.controller";
 import { verifyUserPhoneByAdmin } from "./phone-verification.controller";
 import { getAdminLiveRideMonitoringController } from "./live-operations.controller";
+import { getAdminRideSafetyRecordingPolicy, updateAdminRideSafetyRecordingPolicy } from "./safety-recording-policy.controller";
 import { getAdminVerificationDocumentAccessController } from "./verification-document-access.controller";
 
 const router = Router();
@@ -28,6 +29,8 @@ const admin = [authMiddleware, adminMiddleware] as const;
 const adminMutationLimit = redisRateLimit({ windowSeconds: 60, maxRequests: 60, keyPrefix: "rl:admin-mutation" });
 router.get("/analytics", ...admin, requirePermission("analytics.read"), getAdminAnalytics);
 router.get("/live-operations", ...admin, requirePermission("rides.read"), getAdminLiveRideMonitoringController);
+router.get("/safety/recording", ...admin, requirePermission("emergency.read"), getAdminRideSafetyRecordingPolicy);
+router.put("/safety/recording", ...admin, requirePermission("emergency.manage"), adminMutationLimit, idempotencyMiddleware(), updateAdminRideSafetyRecordingPolicy);
 router.get("/users", ...admin, requirePermission("admin.permissions.read"), listAdminUsersController);
 router.get("/audit-logs", ...admin, requirePermission("audit.read"), listAuditLogsController);
 router.get("/finance/summary", ...admin, requirePermission("payments.read"), getFinanceSummary);
