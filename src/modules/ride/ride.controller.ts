@@ -74,6 +74,92 @@ export async function listEventsController(req: Request, res: Response) {
   try { return successResponse(res, req.requestId, await service.listEvents(req.user!.id, getRideId(req))); } catch (e) { return handleError(res, req.requestId, e); }
 }
 
+
+/**
+ * Authenticated Server-Sent Events endpoint consumed by Android RideLocationStream.
+ * It sends the latest location immediately, then streams newly recorded points.
+ * Every poll re-checks ride membership, so a removed assignment cannot keep reading.
+ */
+export async function streamRideLocationsController(req: Request, res: Response) {
+  const requestId = req.requestId;
+  const userId = req.user!.id;
+  let rideId: string;
+  let firstLocation: Awaited<ReturnType<typeof service.latestLocationForRideActor>>;
+  try {
+    rideId = getRideId(req);
+    firstLocation = await service.latestLocationForRideActor(userId, rideId);
+  } catch (error) {
+    return handleError(res, requestId, error);
+  }
+
+  res.status(200);
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  let closed = false;
+  let polling = false;
+  let lastLocationId: string | null = null;
+  let pollTimer: ReturnType<typeof setInterval> | undefined;
+  let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+
+  const cleanup = () => {
+    if (closed) return;
+    closed = true;
+    if (pollTimer) clearInterval(pollTimer);
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+  };
+
+  const writeLocation = (location: NonNullable<typeof firstLocation>) => {
+    if (closed || location.id === lastLocationId) return;
+    const payload = {
+      id: location.id,
+      latitude: Number(location.latitude),
+      longitude: Number(location.longitude),
+      accuracy: location.accuracy === null ? null : Number(location.accuracy),
+      recordedAt: location.recordedAt.toISOString(),
+    };
+    res.write(`id: ${location.id}\nevent: location\ndata: ${JSON.stringify(payload)}\n\n`);
+    lastLocationId = location.id;
+  };
+
+  res.on("close", cleanup);
+  req.on("aborted", cleanup);
+  if (firstLocation) writeLocation(firstLocation);
+  else res.write(": connected; waiting for first location\n\n");
+
+  const configuredInterval = Number(process.env.RIDE_STREAM_POLL_MS || 2000);
+  const pollIntervalMs = Number.isFinite(configuredInterval)
+    ? Math.min(10_000, Math.max(1_000, configuredInterval))
+    : 2000;
+
+  pollTimer = setInterval(() => {
+    if (closed || polling) return;
+    polling = true;
+    void service.latestLocationForRideActor(userId, rideId).then((location) => {
+      if (closed) return;
+      if (location) writeLocation(location);
+    }).catch((error: unknown) => {
+      if (closed) return;
+      const code = error instanceof Error ? error.message : "INTERNAL_ERROR";
+      if (code === "RIDE_NOT_FOUND" || code === "RIDE_ACCESS_DENIED") {
+        res.write(`event: stream-error\ndata: ${JSON.stringify({ code })}\n\n`);
+        res.end();
+        cleanup();
+      } else {
+        // Keep the stream alive through brief database/network interruptions.
+        res.write(": temporary location lookup failure\n\n");
+      }
+    }).finally(() => { polling = false; });
+  }, pollIntervalMs);
+
+  heartbeatTimer = setInterval(() => {
+    if (!closed && !res.writableEnded) res.write(": keep-alive\n\n");
+  }, 15_000);
+}
+
 export async function listLocationsController(req: Request, res: Response) {
   try { return successResponse(res, req.requestId, await service.listLocations(req.user!.id, getRideId(req))); } catch (e) { return handleError(res, req.requestId, e); }
 }
