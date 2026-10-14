@@ -5,14 +5,14 @@ import { createNotification } from "../notification/notification.service";
 export async function listVerificationRequests(input: { page: number; limit: number; status?: string; role?: "DRIVER" | "GUIDE" }) {
   const where = { ...(input.status ? { status: input.status as any } : {}), ...(input.role ? { role: input.role } : {}) };
   const [items, total] = await Promise.all([
-    prisma.verificationRequest.findMany({ where, include: { user: { select: { id: true, name: true, username: true, email: true } }, steps: true, documents: true, liveSession: true }, orderBy: { createdAt: "desc" }, skip: (input.page - 1) * input.limit, take: input.limit }),
+    prisma.verificationRequest.findMany({ where, include: { user: { select: { id: true, name: true, username: true, email: true } }, steps: true, documents: { select: { id: true, documentType: true, checksum: true, expiryDate: true, verificationStatus: true, createdAt: true, updatedAt: true } }, liveSession: true }, orderBy: { createdAt: "desc" }, skip: (input.page - 1) * input.limit, take: input.limit }),
     prisma.verificationRequest.count({ where }),
   ]);
   return { items, pagination: { page: input.page, limit: input.limit, total, totalPages: Math.ceil(total / input.limit) } };
 }
 
 export async function getVerificationRequest(id: string) {
-  return prisma.verificationRequest.findUnique({ where: { id }, include: { user: { select: { id: true, name: true, username: true, email: true } }, steps: true, documents: true, liveSession: true } });
+  return prisma.verificationRequest.findUnique({ where: { id }, include: { user: { select: { id: true, name: true, username: true, email: true } }, steps: true, documents: { select: { id: true, documentType: true, checksum: true, expiryDate: true, verificationStatus: true, createdAt: true, updatedAt: true } }, liveSession: true } });
 }
 
 /** Application-owned verification: admin approval is the authoritative verification event. */
@@ -46,7 +46,7 @@ export async function updateVerificationRequest(id: string, status: "VERIFIED" |
     return tx.verificationRequest.update({
       where: { id },
       data: { status: status === "VERIFIED" ? "VERIFIED" : "REJECTED", rejectionReason: status === "REJECTED" ? reason ?? null : null, reviewedAt: now },
-      include: { user: { select: { id: true, name: true, username: true, email: true } }, steps: true, documents: true, liveSession: true },
+      include: { user: { select: { id: true, name: true, username: true, email: true } }, steps: true, documents: { select: { id: true, documentType: true, checksum: true, expiryDate: true, verificationStatus: true, createdAt: true, updatedAt: true } }, liveSession: true },
     });
   });
 

@@ -21,6 +21,7 @@ import { listAdminPromotionsController, createAdminPromotionController, updateAd
 import { listAdminSupportTicketsController, replyAdminSupportTicketController, updateAdminSupportTicketController } from "./support-admin.controller";
 import { verifyUserPhoneByAdmin } from "./phone-verification.controller";
 import { getAdminLiveRideMonitoringController } from "./live-operations.controller";
+import { getAdminVerificationDocumentAccessController } from "./verification-document-access.controller";
 
 const router = Router();
 const admin = [authMiddleware, adminMiddleware] as const;
@@ -41,6 +42,7 @@ router.patch("/promotions/:id", ...admin, requirePermission("promotions.manage")
 router.post("/promotions/:id/deactivate", ...admin, requirePermission("promotions.manage"), adminMutationLimit, idempotencyMiddleware(), deactivateAdminPromotionController);
 router.get("/verification/requests", ...admin, requirePermission("drivers.verify", "guides.verify"), getVerificationRequests);
 router.get("/verification/requests/:id", ...admin, requirePermission("drivers.verify", "guides.verify"), getVerificationRequestById);
+router.get("/verification/requests/:id/documents/:documentId/access", ...admin, requirePermission("drivers.verify", "guides.verify"), getAdminVerificationDocumentAccessController);
 router.get("/people", ...admin, requirePermission("users.read"), getPeople);
 router.get("/people/:id", ...admin, requirePermission("users.read"), getPersonById);
 router.post("/users/:userId/phone-verification", ...admin, requirePermission("users.manage"), adminMutationLimit, idempotencyMiddleware(), verifyUserPhoneByAdmin);
