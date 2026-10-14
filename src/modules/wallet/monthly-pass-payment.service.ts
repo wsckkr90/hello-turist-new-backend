@@ -66,13 +66,12 @@ export async function verifyMonthlyPassPayment(userId: string, input: { razorpay
   const order = rows[0];
   if (!order) throw new Error("MONTHLY_PASS_ORDER_NOT_FOUND");
   if (order.user_id !== userId) throw new Error("FORBIDDEN");
-  if (Number(order.amount_paise) !== c.amountPaise) throw new Error("PAYMENT_AMOUNT_MISMATCH");
   const expected = crypto.createHmac("sha256", c.keySecret).update(`${input.razorpayOrderId}|${input.razorpayPaymentId}`).digest("hex");
   const actual = Buffer.from(input.razorpaySignature, "utf8");
   const expectedBuffer = Buffer.from(expected, "utf8");
   if (actual.length !== expectedBuffer.length || !crypto.timingSafeEqual(actual, expectedBuffer)) throw new Error("RAZORPAY_SIGNATURE_INVALID");
   const payment = await razorpay(`/payments/${encodeURIComponent(input.razorpayPaymentId)}`);
-  if (payment.order_id !== input.razorpayOrderId || Number(payment.amount) !== Number(order.amount_paise)) throw new Error("PAYMENT_AMOUNT_MISMATCH");
+  if (payment.order_id !== input.razorpayOrderId || Number(payment.amount) !== Number(order.amount_paise) || payment.currency !== "INR") throw new Error("PAYMENT_AMOUNT_MISMATCH");
   if (String(payment.status).toLowerCase() !== "captured") throw new Error("PAYMENT_NOT_SUCCESSFUL");
   return activateCapturedPass(input.razorpayOrderId, input.razorpayPaymentId, Number(payment.amount));
 }
@@ -85,6 +84,7 @@ export async function applyMonthlyPassPaymentWebhook(event: string, payment: any
   if (!exists[0]) return false;
   if (event === "payment.captured") {
     if (String(payment.status).toLowerCase() !== "captured") throw new Error("PAYMENT_NOT_SUCCESSFUL");
+    if (String(payment.currency ?? "").toUpperCase() !== "INR") throw new Error("PAYMENT_AMOUNT_MISMATCH");
     await activateCapturedPass(String(orderId), String(paymentId), Number(payment.amount));
   } else if (event === "payment.failed") {
     await prisma.$executeRaw`UPDATE wallet_pass_payments SET status='FAILED',updated_at=NOW() WHERE razorpay_order_id=${String(orderId)} AND status='PENDING'`;
