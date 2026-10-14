@@ -89,7 +89,7 @@ export async function listGuides(serviceCity?: string) {
       ...(serviceCity ? { serviceCity: { equals: serviceCity, mode: "insensitive" } } : {}),
       user: {
         roles: {
-          some: { role: "GUIDE", verificationStatus: "APPROVED" },
+          some: { role: "GUIDE", verificationStatus: { in: ["APPROVED", "VERIFIED"] } },
         },
       },
     },
