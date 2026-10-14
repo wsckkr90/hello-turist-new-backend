@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { prisma } from "../../core/prisma";
 import { NotificationType, Prisma } from "../../generated/prisma/client";
 import { calculateFare } from "../ride/fare.service";
+import { applyMonthlyPassPaymentWebhook } from "../wallet/monthly-pass-payment.service";
 import type { CreatePaymentInput, CreateRefundInput, PaymentWebhookInput, VerifyRazorpayPaymentInput } from "./payment.schema";
 
 const paymentInclude = { refunds: { orderBy: { createdAt: "desc" as const } }, ride: { select: { id: true, riderId: true, status: true } } } as const;
@@ -232,6 +233,7 @@ export async function applyRazorpayWebhook(event: string, payload: any) {
     await sendPaymentNotification(payment.payerId, status === "COMPLETED" ? "Refund processed" : status === "FAILED" ? "Refund failed" : "Refund pending", status === "COMPLETED" ? "Your Razorpay refund has been processed." : status === "FAILED" ? "Your Razorpay refund failed. Please contact support if needed." : "Your Razorpay refund is still being processed.", { event: eventKey, paymentId: payment.id, refundId: refund.id, rideId: payment.rideId, providerRefundId });
     return refund;
   }
+  if (await applyMonthlyPassPaymentWebhook(event, paymentEntity)) return { type: "MONTHLY_PASS", event, orderId: paymentEntity?.order_id };
   const paymentId = paymentEntity?.id;
   if (!paymentId) throw new Error("INVALID_RAZORPAY_PAYMENT_WEBHOOK");
   const payment = await prisma.payment.findUnique({ where: { providerPaymentId: paymentId } });
