@@ -245,7 +245,7 @@ export async function getGuideFinance(userId: string) {
       select: { id: true, fareAmount: true, completedAt: true },
       orderBy: { completedAt: "desc" }, take: 500,
     }),
-    prisma.guidePayout.findMany({ where: { guideId: userId }, select: { rideId: true, amount: true, status: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 500 }),
+    prisma.guidePayout.findMany({ where: { guideId: userId }, select: { rideId: true, amount: true, status: true, createdAt: true, updatedAt: true }, orderBy: { createdAt: "desc" }, take: 500 }),
   ]);
   return summarizeProviderFinance(rides, payouts, indiaWindow());
 }
