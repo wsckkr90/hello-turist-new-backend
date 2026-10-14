@@ -193,7 +193,7 @@ function indiaWindow(now = new Date()) {
 
 function summarizeProviderFinance(
   rides: Array<{ id: string; fareAmount: unknown; completedAt: Date | null }>,
-  payouts: Array<{ rideId: string | null; amount: unknown; status: string; createdAt: Date }>,
+  payouts: Array<{ rideId: string | null; amount: unknown; status: string; createdAt: Date; updatedAt: Date }>,
   window: ReturnType<typeof indiaWindow>,
 ) {
   const todayRides = rides.filter(ride => ride.completedAt && ride.completedAt >= window.todayStart && ride.completedAt <= window.now);
@@ -201,7 +201,11 @@ function summarizeProviderFinance(
   const sumFare = (items: typeof rides) => items.reduce((sum, ride) => sum + Number(ride.fareAmount ?? 0), 0);
   const paidStatuses = new Set(["PAID", "COMPLETED", "SUCCESS", "PROCESSED"]);
   const summarizePayouts = (since: Date, periodRides: typeof rides) => {
-    const items = payouts.filter(payout => payout.createdAt >= since && payout.createdAt <= window.now);
+    const items = payouts.filter(payout => {
+      const isPaid = paidStatuses.has(payout.status.toUpperCase());
+      const effectiveDate = isPaid ? payout.updatedAt : payout.createdAt;
+      return effectiveDate >= since && effectiveDate <= window.now;
+    });
     return {
       paidAmount: items.filter(payout => paidStatuses.has(payout.status.toUpperCase())).reduce((sum, payout) => sum + Number(payout.amount), 0),
       pendingAmount: items.filter(payout => !paidStatuses.has(payout.status.toUpperCase())).reduce((sum, payout) => sum + Number(payout.amount), 0),
@@ -224,11 +228,11 @@ export async function getDriverFinance(userId: string) {
   await requireDriver(userId);
   const [rides, payouts] = await Promise.all([
     prisma.ride.findMany({
-      where: { status: "COMPLETED", assignments: { some: { driverId: userId } } },
+      where: { status: "COMPLETED", assignments: { some: { driverId: userId, status: "ACCEPTED" } } },
       select: { id: true, fareAmount: true, completedAt: true },
       orderBy: { completedAt: "desc" }, take: 500,
     }),
-    prisma.driverPayout.findMany({ where: { driverId: userId }, select: { rideId: true, amount: true, status: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 500 }),
+    prisma.driverPayout.findMany({ where: { driverId: userId }, select: { rideId: true, amount: true, status: true, createdAt: true, updatedAt: true }, orderBy: { createdAt: "desc" }, take: 500 }),
   ]);
   return summarizeProviderFinance(rides, payouts, indiaWindow());
 }
@@ -237,11 +241,11 @@ export async function getGuideFinance(userId: string) {
   await requireGuide(userId);
   const [rides, payouts] = await Promise.all([
     prisma.ride.findMany({
-      where: { status: "COMPLETED", guideAssignments: { some: { guideId: userId } } },
+      where: { status: "COMPLETED", guideAssignments: { some: { guideId: userId, status: "ACCEPTED" } } },
       select: { id: true, fareAmount: true, completedAt: true },
       orderBy: { completedAt: "desc" }, take: 500,
     }),
-    prisma.guidePayout.findMany({ where: { guideId: userId }, select: { rideId: true, amount: true, status: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 500 }),
+    prisma.guidePayout.findMany({ where: { guideId: userId }, select: { rideId: true, amount: true, status: true, createdAt: true, updatedAt: true }, orderBy: { createdAt: "desc" }, take: 500 }),
   ]);
   return summarizeProviderFinance(rides, payouts, indiaWindow());
 }
