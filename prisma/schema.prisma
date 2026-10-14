@@ -72,6 +72,8 @@ model User {
   notifications        Notification[]
   payoutAccount        DriverPayoutAccount?
   driverPayouts        DriverPayout[]
+  guidePayoutAccount   GuidePayoutAccount?
+  guidePayouts         GuidePayout[]
   supportTickets       SupportTicket[]
 
   @@map("users")
@@ -239,6 +241,47 @@ model DriverPayout {
   @@index([rideId])
   @@unique([rideId])
   @@map("driver_payouts")
+}
+
+model GuidePayoutAccount {
+  id                     String   @id @default(uuid()) @db.Uuid
+  userId                 String   @unique @map("user_id") @db.Uuid
+  method                 String   @default("BANK")
+  accountHolderName      String?  @map("account_holder_name")
+  encryptedAccountNumber String?  @map("encrypted_account_number")
+  accountNumberLast4     String?  @map("account_number_last4")
+  ifsc                   String?
+  encryptedUpiVpa        String?  @map("encrypted_upi_vpa")
+  verificationStatus     String   @default("PENDING") @map("verification_status")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([verificationStatus])
+  @@map("guide_payout_accounts")
+}
+
+model GuidePayout {
+  id               String   @id @default(uuid()) @db.Uuid
+  guideId          String   @map("guide_id") @db.Uuid
+  rideId           String?  @map("ride_id") @db.Uuid
+  amount           Decimal  @db.Decimal(12, 2)
+  currency         String   @default("INR") @db.VarChar(3)
+  mode             String
+  status           String   @default("PENDING")
+  provider         String   @default("RAZORPAYX")
+  providerPayoutId String?  @unique @map("provider_payout_id")
+  failureReason    String?  @map("failure_reason")
+  metadata         Json?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  guide            User     @relation(fields: [guideId], references: [id], onDelete: Cascade)
+
+  @@index([guideId, createdAt])
+  @@index([status, createdAt])
+  @@index([rideId])
+  @@unique([rideId])
+  @@map("guide_payouts")
 }
 
 model GuideProfile {
