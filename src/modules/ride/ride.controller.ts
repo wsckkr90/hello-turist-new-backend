@@ -148,3 +148,19 @@ export async function streamRideController(req: Request, res: Response) {
   res.on("close", closeStream);
   res.on("error", closeStream);
 }
+
+
+/** Authenticated foreground-service heartbeat; validates the caller can access the ride. */
+export async function rideHeartbeatController(req: Request, res: Response) {
+  try {
+    const snapshot = await service.getRideTrackingSnapshot(req.user!.id, getRideId(req));
+    return successResponse(res, req.requestId, {
+      rideId: snapshot.rideId,
+      status: snapshot.status,
+      acknowledgedAt: new Date().toISOString(),
+      latestLocation: snapshot.location,
+    });
+  } catch (error) {
+    return handleError(res, req.requestId, error);
+  }
+}
