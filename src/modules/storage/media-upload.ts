@@ -4,11 +4,13 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { signCloudinaryUpload } from "../../core/cloudinary";
 import { getR2StorageConfig } from "../../core/storage";
 
-export const ALLOWED_MEDIA_TYPES = ["image/jpeg", "image/png", "image/webp", "video/mp4", "audio/m4a"] as const;
+export const ALLOWED_MEDIA_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf", "video/mp4", "audio/m4a"] as const;
 export const MAX_MEDIA_BYTES = 50 * 1024 * 1024;
 
 function resourceType(contentType: string) {
-  return contentType.startsWith("image/") ? "image" : "video";
+  if (contentType.startsWith("image/")) return "image";
+  if (contentType === "application/pdf") return "raw";
+  return "video";
 }
 
 function safeSegment(value: string) {
