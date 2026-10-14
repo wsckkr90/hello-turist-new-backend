@@ -98,4 +98,31 @@ export async function addRideEvent(userId:string,rideId:string,data:RideEventInp
 }
 export async function listEvents(userId:string,rideId:string){await getRideForActor(rideId,userId);return prisma.rideEvent.findMany({where:{rideId},orderBy:{createdAt:"asc"}})}
 export async function listLocations(userId:string,rideId:string){await getRideForActor(rideId,userId);return prisma.rideLocation.findMany({where:{rideId},orderBy:{recordedAt:"asc"}})}
+export async function latestLocationForRideActor(userId: string, rideId: string) {
+  const ride = await prisma.ride.findUnique({
+    where: { id: rideId },
+    select: {
+      riderId: true,
+      assignments: {
+        where: { driverId: userId, status: { in: ["OFFERED", "ACCEPTED"] } },
+        select: { id: true },
+        take: 1,
+      },
+      guideAssignments: {
+        where: { guideId: userId, status: { in: ["OFFERED", "ACCEPTED"] } },
+        select: { id: true },
+        take: 1,
+      },
+    },
+  });
+  if (!ride) throw new Error("RIDE_NOT_FOUND");
+  if (ride.riderId !== userId && ride.assignments.length === 0 && ride.guideAssignments.length === 0) {
+    throw new Error("RIDE_ACCESS_DENIED");
+  }
+
+  return prisma.rideLocation.findFirst({
+    where: { rideId },
+    orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
+  });
+}
 export { requireApprovedGuide };
