@@ -2,8 +2,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "../../core/prisma";
 import { createCloudinaryPublicId, getCloudinary, signCloudinaryUpload } from "../../core/cloudinary";
 import { RIDE_RECORDING_POLICY } from "./ride-safety.policy";
-
-const retentionDays = Math.max(1, Number(process.env.RIDE_RECORDING_RETENTION_DAYS || 30));
+import { getRideSafetyRecordingPolicy, type RideSafetyRecordingPolicy } from "./recording-policy.service";
 const CLOUDINARY_RESOURCE_TYPE = "video" as const;
 const CLOUDINARY_DELIVERY_TYPE = "authenticated" as const;
 
@@ -20,12 +19,38 @@ async function assertActiveRideAccess(userId: string, rideId: string) {
   return ride;
 }
 
-async function assertConsent(rideId: string) {
-  const event = await prisma.rideEvent.findFirst({
+async function assertConsent(rideId: string, policy: RideSafetyRecordingPolicy) {
+  const ride = await prisma.ride.findUnique({
+    where: { id: rideId },
+    select: {
+      riderId: true,
+      assignments: { where: { status: "ACCEPTED" }, select: { driverId: true } },
+      guideAssignments: { where: { status: "ACCEPTED" }, select: { guideId: true } },
+    },
+  });
+  if (!ride) throw new Error("RIDE_NOT_FOUND");
+
+  const events = await prisma.rideEvent.findMany({
     where: { rideId, type: "RECORDING_CONSENT", payload: { path: ["consent"], equals: true } },
     orderBy: { createdAt: "desc" },
+    take: 100,
+    select: { actorUserId: true },
   });
-  if (!event) throw new Error("RECORDING_CONSENT_REQUIRED");
+  const consentedUserIds = new Set(events.map((event) => event.actorUserId).filter((id): id is string => Boolean(id)));
+
+  if (policy.riderConsentRequired && !consentedUserIds.has(ride.riderId)) {
+    throw new Error("RECORDING_RIDER_CONSENT_REQUIRED");
+  }
+
+  if (policy.providerAcknowledgementRequired) {
+    const providerIds = [
+      ...ride.assignments.map((assignment) => assignment.driverId),
+      ...ride.guideAssignments.map((assignment) => assignment.guideId),
+    ];
+    if (providerIds.length === 0 || providerIds.some((providerId) => !consentedUserIds.has(providerId))) {
+      throw new Error("RECORDING_PROVIDER_ACKNOWLEDGEMENT_REQUIRED");
+    }
+  }
 }
 
 function normalizeMedia(contentType: string) {
@@ -45,8 +70,10 @@ function assertRecordingPublicId(rideId: string, publicId: string) {
 }
 
 export async function prepareRideRecordingUpload(userId: string, rideId: string, contentType: string) {
+  const policy = await getRideSafetyRecordingPolicy();
+  if (!policy.enabled) throw new Error("RECORDING_DISABLED_BY_POLICY");
   await assertActiveRideAccess(userId, rideId);
-  await assertConsent(rideId);
+  await assertConsent(rideId, policy);
   const media = normalizeMedia(contentType);
   const publicId = createCloudinaryPublicId(rideId, media, randomUUID());
   const timestamp = Math.floor(Date.now() / 1000);
@@ -57,7 +84,7 @@ export async function prepareRideRecordingUpload(userId: string, rideId: string,
     timestamp,
   };
   const signed = signCloudinaryUpload(signedParams);
-  const expiresAt = new Date(Date.now() + retentionDays * 86400000).toISOString();
+  const expiresAt = new Date(Date.now() + policy.retentionDays * 86400000).toISOString();
 
   return {
     key: publicId,
@@ -75,8 +102,10 @@ export async function prepareRideRecordingUpload(userId: string, rideId: string,
 }
 
 export async function finalizeRideRecording(userId: string, rideId: string, publicId: string, contentType: string, bytes?: number) {
+  const policy = await getRideSafetyRecordingPolicy();
+  if (!policy.enabled) throw new Error("RECORDING_DISABLED_BY_POLICY");
   await assertActiveRideAccess(userId, rideId);
-  await assertConsent(rideId);
+  await assertConsent(rideId, policy);
   assertRecordingPublicId(rideId, publicId);
 
   const client = getCloudinary();
@@ -148,7 +177,8 @@ export async function createRecordingAccessUrl(userId: string, rideId: string, r
 }
 
 export async function purgeExpiredRideRecordings() {
-  const cutoff = new Date(Date.now() - retentionDays * 86400000);
+  const policy = await getRideSafetyRecordingPolicy();
+  const cutoff = new Date(Date.now() - policy.retentionDays * 86400000);
   const events = await prisma.rideEvent.findMany({
     where: { type: "LOCATION_RECORDED", createdAt: { lt: cutoff } },
     select: { id: true, rideId: true, payload: true },
