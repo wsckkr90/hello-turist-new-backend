@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { authMiddleware } from "../../middleware/auth";
 import { idempotencyMiddleware } from "../../middleware/idempotency";
-import { acceptRideController, addEventController, addLocationController, assignRideController, cancelRideController, createRideController, getRideController, listEventsController, listLocationsController, listRidesController, rejectRideController, streamRideController } from "./ride.controller";
+import { acceptRideController, addEventController, addLocationController, assignRideController, cancelRideController, createRideController, getRideController, listEventsController, listLocationsController, listRidesController, rejectRideController, streamRideController, rideHeartbeatController } from "./ride.controller";
 import { driverArrivingController, driverArrivedController, startRideController, nearDestinationController, completeRideController, recoverRideController } from "./ride-action.controller";
 import { fareQuoteController } from "./fare.controller";
 import { listDriverRidesController } from "./driver-ride.controller";
@@ -29,6 +29,7 @@ router.post("/:id/guide-assignments/:assignmentId/reject", idempotencyMiddleware
 router.post("/:id/assignments/:assignmentId/accept", idempotencyMiddleware(), acceptAssignmentController);
 router.post("/:id/assignments/:assignmentId/reject", idempotencyMiddleware(), rejectAssignmentController);
 router.get("/:id/stream", streamRideController);
+router.post("/:id/heartbeat", rideHeartbeatController);
 router.get("/:id", getRideController);
 router.post("/:id/cancel", idempotencyMiddleware(), cancelRideController);
 router.post("/:id/assign", idempotencyMiddleware(), assignRideController);
