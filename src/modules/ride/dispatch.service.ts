@@ -62,7 +62,7 @@ async function requireApprovedDriver(userId: string) {
     where: { userId_role: { userId, role: "DRIVER" } },
     select: { verificationStatus: true },
   });
-  if (!role || role.verificationStatus !== "APPROVED") throw new Error("DRIVER_NOT_VERIFIED");
+  if (!role || !["APPROVED", "VERIFIED"].includes(role.verificationStatus)) throw new Error("DRIVER_NOT_VERIFIED");
 }
 
 export async function listAssignments(userId: string, rideId: string) {
@@ -88,7 +88,7 @@ export async function searchGuides(userId: string, rideId: string, input: GuideS
       ...(input.specialties?.length ? { specialties: { hasSome: input.specialties } } : {}),
       user: {
         status: "ACTIVE",
-        roles: { some: { role: "GUIDE", verificationStatus: "APPROVED" } },
+        roles: { some: { role: "GUIDE", verificationStatus: { in: ["APPROVED", "VERIFIED"] } } },
       },
     },
     orderBy: { updatedAt: "asc" },
