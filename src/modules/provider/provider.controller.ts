@@ -96,3 +96,31 @@ export async function listDriverPayouts(req: Request, res: Response) {
   try { return successResponse(res, req.requestId, await payoutService.listDriverPayouts(req.user.id)); }
   catch (error) { return handleError(error, req, res); }
 }
+
+
+export async function getGuidePayoutAccount(req: Request, res: Response) {
+  try { return successResponse(res, req.requestId, await payoutService.getGuidePayoutAccount(req.user.id)); }
+  catch (error) { return handleError(error, req, res); }
+}
+
+export async function updateGuidePayoutAccount(req: Request, res: Response) {
+  const parsed = payoutAccountSchema.safeParse(req.body);
+  if (!parsed.success) return errorResponse(res, req.requestId, 400, "VALIDATION_ERROR", "Invalid payout account", parsed.error.flatten());
+  try { return successResponse(res, req.requestId, await payoutService.upsertGuidePayoutAccount(req.user.id, parsed.data)); }
+  catch (error) { return handleError(error, req, res); }
+}
+
+export async function listGuidePayouts(req: Request, res: Response) {
+  try { return successResponse(res, req.requestId, await payoutService.listGuidePayouts(req.user.id)); }
+  catch (error) { return handleError(error, req, res); }
+}
+
+export async function getDriverFinance(req: Request, res: Response) {
+  try { return successResponse(res, req.requestId, await payoutService.getDriverFinance(req.user.id)); }
+  catch (error) { return handleError(error, req, res); }
+}
+
+export async function getGuideFinance(req: Request, res: Response) {
+  try { return successResponse(res, req.requestId, await payoutService.getGuideFinance(req.user.id)); }
+  catch (error) { return handleError(error, req, res); }
+}
