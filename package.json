@@ -15,11 +15,12 @@
     "test:payment-e2e": "tsx tests/payment-lifecycle.e2e.ts",
     "test:payment-webhook-e2e": "tsx tests/payment-webhook.e2e.ts",
     "test:notification-e2e": "tsx tests/notification-fcm.e2e.ts",
-    "qa": "npm run build && npm run test:social-auth-consent && npm run test:ride-transition && npx tsx tests/security.middleware.test.ts && npm run test:e2e-smoke && npm run test:core-e2e && npm run test:payment-webhook-e2e && npm run test:notification-e2e",
+    "qa": "npm run build && npm run test:monthly-pass-pricing && npm run test:social-auth-consent && npm run test:ride-transition && npx tsx tests/security.middleware.test.ts && npm run test:e2e-smoke && npm run test:core-e2e && npm run test:payment-webhook-e2e && npm run test:notification-e2e",
     "postinstall": "prisma generate",
     "create-admin": "tsx scripts/create-admin.ts",
     "test:ride-transition": "tsx tests/ride-transition.test.ts",
-    "test:social-auth-consent": "tsx tests/social-auth-consent.test.ts"
+    "test:social-auth-consent": "tsx tests/social-auth-consent.test.ts",
+    "test:monthly-pass-pricing": "tsx --test tests/monthly-pass-pricing.test.ts"
   },
   "keywords": [],
   "author": "",

@@ -18,6 +18,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Monthly pass pricing unit tests
+        run: npm run test:monthly-pass-pricing
       - name: Registration terms-consent regression tests
         run: npx tsx tests/social-auth-consent.test.ts
       - name: Admin phone-verification schema regression tests
