@@ -30,12 +30,22 @@ async function assertConsent(rideId: string, policy: RideSafetyRecordingPolicy) 
   });
   if (!ride) throw new Error("RIDE_NOT_FOUND");
 
-  const events = await prisma.rideEvent.findMany({
-    where: { rideId, type: "RECORDING_CONSENT", payload: { path: ["consent"], equals: true } },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-    select: { actorUserId: true },
-  });
+  const providerIds = [
+    ...ride.assignments.map((assignment) => assignment.driverId),
+    ...ride.guideAssignments.map((assignment) => assignment.guideId),
+  ];
+  const participantIds = [...new Set([ride.riderId, ...providerIds])];
+  const events = participantIds.length
+    ? await prisma.rideEvent.findMany({
+        where: {
+          rideId,
+          type: "RECORDING_CONSENT",
+          actorUserId: { in: participantIds },
+          payload: { path: ["consent"], equals: true },
+        },
+        select: { actorUserId: true },
+      })
+    : [];
   const consentedUserIds = new Set(events.map((event) => event.actorUserId).filter((id): id is string => Boolean(id)));
 
   if (policy.riderConsentRequired && !consentedUserIds.has(ride.riderId)) {
@@ -43,10 +53,6 @@ async function assertConsent(rideId: string, policy: RideSafetyRecordingPolicy) 
   }
 
   if (policy.providerAcknowledgementRequired) {
-    const providerIds = [
-      ...ride.assignments.map((assignment) => assignment.driverId),
-      ...ride.guideAssignments.map((assignment) => assignment.guideId),
-    ];
     if (providerIds.length === 0 || providerIds.some((providerId) => !consentedUserIds.has(providerId))) {
       throw new Error("RECORDING_PROVIDER_ACKNOWLEDGEMENT_REQUIRED");
     }
