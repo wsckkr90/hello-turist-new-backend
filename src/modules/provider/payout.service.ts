@@ -1,6 +1,5 @@
 import { prisma } from "../../core/prisma";
 import { encryptPayoutField } from "../../core/payout-data";
-import { notifyUser } from "../notification/notification.service";
 import type { PayoutAccountInput } from "./payout.schema";
 
 function publicAccount(account: any) {
@@ -101,34 +100,9 @@ export async function createDriverPayout(_driverId: string, _amount: number, _ri
   throw new Error("PAYOUT_PROVIDER_NOT_CONFIGURED");
 }
 
-export async function settleCompletedRidePayout(rideId: string) {
-  const ride = await prisma.ride.findUnique({
-    where: { id: rideId },
-    select: {
-      id: true,
-      status: true,
-      payment: { select: { amount: true, status: true, currency: true } },
-      assignments: { where: { status: "ACCEPTED" }, orderBy: { acceptedAt: "desc" }, take: 1, select: { driverId: true } },
-    },
-  });
-  if (!ride) throw new Error("RIDE_NOT_FOUND");
-  if (ride.status !== "COMPLETED") throw new Error("INVALID_RIDE_STATE");
-  if (!ride.payment || ride.payment.status !== "CAPTURED") throw new Error("DRIVER_PAYOUT_PAYMENT_NOT_CAPTURED");
-  if (ride.payment.currency !== "INR") throw new Error("DRIVER_PAYOUT_CURRENCY_UNSUPPORTED");
-  const assignment = ride.assignments[0];
-  if (!assignment) throw new Error("DRIVER_ASSIGNMENT_NOT_FOUND");
-
-  const amount = Number(ride.payment.amount);
-  const payout = await createDriverPayout(assignment.driverId, amount, ride.id);
-  void notifyUser(
-    assignment.driverId,
-    payout.status === "PROCESSED" ? "Driver payout completed" : "Driver payout initiated",
-    payout.status === "PROCESSED"
-      ? `₹${amount.toFixed(2)} has been paid for your completed ride.`
-      : `Your ₹${amount.toFixed(2)} ride earning payout has been initiated.`,
-    { rideId: ride.id, payoutId: payout.id, status: payout.status, amount, commissionPercent: 0 },
-  ).catch(() => undefined);
-  return payout;
+export async function settleCompletedRidePayout(_rideId: string) {
+  // Completing a ride and capturing its payment do not imply that provider funds were transferred.
+  throw new Error("PAYOUT_PROVIDER_NOT_CONFIGURED");
 }
 
 export async function listDriverPayouts(driverId: string) {
