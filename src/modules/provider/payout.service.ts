@@ -270,7 +270,7 @@ export async function getGuideFinance(userId: string) {
   await requireGuide(userId);
   const [rides, payouts] = await Promise.all([
     prisma.ride.findMany({
-      where: { status: "COMPLETED", assignments: { some: { guideId: userId, status: "ACCEPTED" } } },
+      where: { status: "COMPLETED", guideAssignments: { some: { guideId: userId, status: "ACCEPTED" } } },
       select: {
         id: true, pickupAddress: true, dropoffAddress: true, fareAmount: true, fareCurrency: true,
         paymentMethod: true, createdAt: true, completedAt: true,
