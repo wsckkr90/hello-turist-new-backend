@@ -60,7 +60,7 @@ export async function dispatchRide(rideId: string) {
       isAvailable: true,
       user: {
         status: "ACTIVE",
-        roles: { some: { role: "DRIVER", verificationStatus: "APPROVED" } },
+        roles: { some: { role: "DRIVER", verificationStatus: { in: ["APPROVED", "VERIFIED"] } } },
       },
     },
     select: {

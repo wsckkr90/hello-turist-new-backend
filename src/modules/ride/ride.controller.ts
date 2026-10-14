@@ -77,3 +77,74 @@ export async function listEventsController(req: Request, res: Response) {
 export async function listLocationsController(req: Request, res: Response) {
   try { return successResponse(res, req.requestId, await service.listLocations(req.user!.id, getRideId(req))); } catch (e) { return handleError(res, req.requestId, e); }
 }
+
+/**
+ * Authenticated server-sent events endpoint for the rider/provider tracking
+ * map. Poll the latest accepted provider location so it also works without
+ * an in-memory pub/sub service; reconnecting clients receive the latest point.
+ */
+export async function streamRideController(req: Request, res: Response) {
+  const userId = req.user!.id;
+  const id = getRideId(req);
+  let initial: Awaited<ReturnType<typeof service.getRideTrackingSnapshot>>;
+  try {
+    initial = await service.getRideTrackingSnapshot(userId, id);
+  } catch (error) {
+    return handleError(res, req.requestId, error);
+  }
+
+  res.status(200);
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+  res.write("retry: 2000\n: connected\n\n");
+
+  let closed = false;
+  let inFlight = false;
+  let lastLocationId = "";
+  let pollCount = 0;
+  let poller: ReturnType<typeof setInterval> | undefined;
+
+  const closeStream = () => {
+    if (closed) return;
+    closed = true;
+    if (poller) clearInterval(poller);
+  };
+  const emitLocation = (snapshot: Awaited<ReturnType<typeof service.getRideTrackingSnapshot>>) => {
+    if (!snapshot.location || snapshot.location.id === lastLocationId) return;
+    lastLocationId = snapshot.location.id;
+    res.write(`event: location\ndata: ${JSON.stringify(snapshot.location)}\n\n`);
+  };
+  const finishIfTerminal = (snapshot: Awaited<ReturnType<typeof service.getRideTrackingSnapshot>>) => {
+    if (!["COMPLETED", "CANCELLED"].includes(String(snapshot.status).toUpperCase())) return false;
+    res.write(`event: status\ndata: ${JSON.stringify({ rideId: id, status: snapshot.status })}\n\n`);
+    closeStream();
+    res.end();
+    return true;
+  };
+
+  emitLocation(initial);
+  if (finishIfTerminal(initial)) return;
+
+  poller = setInterval(() => {
+    if (closed || inFlight) return;
+    inFlight = true;
+    void service.getRideTrackingSnapshot(userId, id).then((snapshot) => {
+      if (closed) return;
+      emitLocation(snapshot);
+      if (finishIfTerminal(snapshot)) return;
+      pollCount += 1;
+      if (pollCount % 5 === 0 && !closed) res.write(": heartbeat\n\n");
+    }).catch(() => {
+      closeStream();
+      if (!res.writableEnded) res.end();
+    }).finally(() => {
+      inFlight = false;
+    });
+  }, 2_000);
+
+  res.on("close", closeStream);
+  res.on("error", closeStream);
+}

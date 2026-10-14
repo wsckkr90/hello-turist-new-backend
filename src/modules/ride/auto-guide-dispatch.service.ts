@@ -38,7 +38,7 @@ export async function dispatchGuide(rideId: string) {
       isAvailable: true,
       user: {
         status: "ACTIVE",
-        roles: { some: { role: "GUIDE", verificationStatus: "APPROVED" } },
+        roles: { some: { role: "GUIDE", verificationStatus: { in: ["APPROVED", "VERIFIED"] } } },
       },
     },
     select: { userId: true, serviceCity: true, updatedAt: true },
