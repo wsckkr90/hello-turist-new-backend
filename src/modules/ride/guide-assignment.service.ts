@@ -8,7 +8,7 @@ async function requireApprovedGuide(userId: string) {
     where: { userId_role: { userId, role: "GUIDE" } },
     select: { verificationStatus: true },
   });
-  if (!role || role.verificationStatus !== "APPROVED") throw new Error("GUIDE_NOT_VERIFIED");
+  if (!role || !["APPROVED", "VERIFIED"].includes(role.verificationStatus)) throw new Error("GUIDE_NOT_VERIFIED");
 }
 
 async function requireRideMember(userId: string, rideId: string) {
@@ -29,7 +29,7 @@ export async function searchAndOfferGuide(userId: string, rideId: string, guideI
   if (ride.serviceType === "RIDE_ONLY") throw new Error("GUIDE_NOT_REQUIRED");
   const guideRole = await prisma.userRoleAssignment.findUnique({ where: { userId_role: { userId: guideId, role: "GUIDE" } }, select: { verificationStatus: true } });
   const guide = await prisma.guideProfile.findUnique({ where: { userId: guideId }, select: { id: true, isAvailable: true } });
-  if (!guideRole || guideRole.verificationStatus !== "APPROVED" || !guide || !guide.isAvailable) throw new Error("GUIDE_NOT_AVAILABLE");
+  if (!guideRole || !["APPROVED", "VERIFIED"].includes(guideRole.verificationStatus) || !guide || !guide.isAvailable) throw new Error("GUIDE_NOT_AVAILABLE");
   const assignment = await prisma.$transaction(async (tx) => {
     const existing = await tx.guideAssignment.findUnique({ where: { rideId_guideId: { rideId, guideId } }, select: { id: true, status: true } });
     if (existing && existing.status !== "REJECTED" && existing.status !== "EXPIRED") throw new Error("GUIDE_ASSIGNMENT_EXISTS");
