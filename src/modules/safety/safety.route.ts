@@ -8,12 +8,27 @@ import {
   createRideRecordingConsentController,
 } from "./safety.controller";
 import { createRecordingAccessUrl, finalizeRideRecording, prepareRideRecordingUpload } from "../ride-safety/recording.service";
+import { getRideSafetyRecordingPolicy } from "../ride-safety/recording-policy.service";
 import { authenticatedSharedTripRouter } from "./shared-trip.route";
 
 const router = Router();
 router.use(authMiddleware);
 router.use(authenticatedSharedTripRouter);
 router.get("/safety", safetyOverviewController);
+router.get("/safety/recording-policy", async (req, res) => {
+  try {
+    const data = await getRideSafetyRecordingPolicy();
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(200).json({ success: true, data, error: null, requestId: req.requestId });
+  } catch (error) {
+    console.error("RIDE_RECORDING_POLICY_READ_FAILED", error);
+    return res.status(500).json({
+      success: false, data: null,
+      error: { code: "RECORDING_POLICY_READ_FAILED", message: "Unable to load recording policy" },
+      requestId: req.requestId,
+    });
+  }
+});
 router.get("/trusted-contacts", listTrustedContactsController);
 router.post("/trusted-contacts/invitations", idempotencyMiddleware(), createTrustedContactController);
 router.post("/trusted-contacts/invitations/:id/accept", idempotencyMiddleware(), acceptTrustedContactInvitationController);
@@ -33,7 +48,7 @@ router.post("/rides/:id/recordings/upload-url", idempotencyMiddleware(), async (
     return res.status(200).json({ success: true, data, error: null });
   } catch (error) {
     const code = error instanceof Error ? error.message : "RECORDING_UPLOAD_FAILED";
-    const status = code === "RIDE_NOT_FOUND" ? 404 : code === "RIDE_ACCESS_DENIED" ? 403 : code === "RECORDING_CONSENT_REQUIRED" ? 409 : 400;
+    const status = code === "RIDE_NOT_FOUND" ? 404 : code === "RIDE_ACCESS_DENIED" ? 403 : ["RECORDING_DISABLED_BY_POLICY", "RECORDING_CONSENT_REQUIRED", "RECORDING_RIDER_CONSENT_REQUIRED", "RECORDING_PROVIDER_ACKNOWLEDGEMENT_REQUIRED"].includes(code) ? 409 : 400;
     return res.status(status).json({ success: false, data: null, error: { code, message: code === "RIDE_ACCESS_DENIED" ? "You do not have access to this ride recording" : "Unable to prepare recording upload" }, requestId: req.requestId });
   }
 });
