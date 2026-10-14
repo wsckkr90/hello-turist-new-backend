@@ -87,6 +87,10 @@ export async function addVerificationDocument(userId: string, requestId: string,
   const request = await prisma.verificationRequest.findFirst({ where: { id: requestId, userId }, select: { id: true, status: true } });
   if (!request) throw new Error("VERIFICATION_REQUEST_NOT_FOUND");
   if (!isEditableStatus(request.status)) throw new Error("VERIFICATION_REQUEST_LOCKED");
+  // Accept only upload keys issued for this authenticated user's verification documents.
+  if (!input.privateObjectKey.startsWith(`private/${userId}/provider_verification/`)) {
+    throw new Error("INVALID_DOCUMENT_OBJECT_KEY");
+  }
   if (input.expiryDate && input.expiryDate <= new Date()) throw new Error("DOCUMENT_EXPIRED");
   const document = await prisma.verificationDocument.create({ data: { verificationRequestId: request.id, documentType: input.documentType, privateObjectKey: input.privateObjectKey, checksum: input.checksum, expiryDate: input.expiryDate, verificationStatus: "PENDING" }, select: { id: true, documentType: true, checksum: true, expiryDate: true, verificationStatus: true, createdAt: true } });
   await prisma.verificationStep.update({ where: { verificationRequestId_step: { verificationRequestId: request.id, step: "DOCUMENTS" } }, data: { status: "COMPLETED", completedAt: new Date() } });
