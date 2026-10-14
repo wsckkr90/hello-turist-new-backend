@@ -8,11 +8,12 @@ const CLOUDINARY_RESOURCE_TYPE = "video" as const;
 const CLOUDINARY_DELIVERY_TYPE = "authenticated" as const;
 
 async function assertActiveRideAccess(userId: string, rideId: string) {
-  const ride = await prisma.ride.findUnique({ where: { id: rideId }, include: { assignments: true } });
+  const ride = await prisma.ride.findUnique({ where: { id: rideId }, include: { assignments: true, guideAssignments: true } });
   if (!ride) throw new Error("RIDE_NOT_FOUND");
   const isRider = ride.riderId === userId;
   const isAcceptedDriver = ride.assignments.some((a) => a.driverId === userId && a.status === "ACCEPTED");
-  if (!isRider && !isAcceptedDriver) throw new Error("RIDE_ACCESS_DENIED");
+  const isAcceptedGuide = ride.guideAssignments.some((a) => a.guideId === userId && a.status === "ACCEPTED");
+  if (!isRider && !isAcceptedDriver && !isAcceptedGuide) throw new Error("RIDE_ACCESS_DENIED");
   if (!RIDE_RECORDING_POLICY.recordingOnlyWhileRideActive || !["ASSIGNED", "DRIVER_ARRIVING", "IN_PROGRESS"].includes(ride.status)) {
     throw new Error("RECORDING_ONLY_DURING_ACTIVE_RIDE");
   }
