@@ -200,20 +200,22 @@ function summarizeProviderFinance(
   const monthRides = rides.filter(ride => ride.completedAt && ride.completedAt >= window.monthStart && ride.completedAt <= window.now);
   const sumFare = (items: typeof rides) => items.reduce((sum, ride) => sum + Number(ride.fareAmount ?? 0), 0);
   const paidStatuses = new Set(["PAID", "COMPLETED", "SUCCESS", "PROCESSED"]);
-  const summarizePayouts = (since: Date) => {
+  const summarizePayouts = (since: Date, periodRides: typeof rides) => {
     const items = payouts.filter(payout => payout.createdAt >= since && payout.createdAt <= window.now);
     return {
       paidAmount: items.filter(payout => paidStatuses.has(payout.status.toUpperCase())).reduce((sum, payout) => sum + Number(payout.amount), 0),
       pendingAmount: items.filter(payout => !paidStatuses.has(payout.status.toUpperCase())).reduce((sum, payout) => sum + Number(payout.amount), 0),
       paidCount: items.filter(payout => paidStatuses.has(payout.status.toUpperCase())).length,
       notPaidCount: items.filter(payout => !paidStatuses.has(payout.status.toUpperCase())).length,
+      paidRideCount: periodRides.filter(ride => payouts.some(payout => payout.rideId === ride.id && paidStatuses.has(payout.status.toUpperCase()))).length,
+      unpaidRideCount: periodRides.filter(ride => !payouts.some(payout => payout.rideId === ride.id && paidStatuses.has(payout.status.toUpperCase()))).length,
     };
   };
   return {
     currency: "INR",
     note: "Ride fare is gross booking value, not provider net earnings. Paid amounts reflect recorded payout transfers only; no payout is assumed from ride completion.",
-    today: { completedRides: todayRides.length, grossRideFare: Number(sumFare(todayRides).toFixed(2)), ...summarizePayouts(window.todayStart) },
-    monthly: { completedRides: monthRides.length, grossRideFare: Number(sumFare(monthRides).toFixed(2)), ...summarizePayouts(window.monthStart) },
+    today: { completedRides: todayRides.length, grossRideFare: Number(sumFare(todayRides).toFixed(2)), ...summarizePayouts(window.todayStart, todayRides) },
+    monthly: { completedRides: monthRides.length, grossRideFare: Number(sumFare(monthRides).toFixed(2)), ...summarizePayouts(window.monthStart, monthRides) },
     payoutConfiguration: "PAYOUT_PROVIDER_NOT_CONFIGURED",
   };
 }
