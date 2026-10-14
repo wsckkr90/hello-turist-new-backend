@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { prisma } from "../../core/prisma";
-import { calculateMonthlyPassAmountPaise, getMonthlyPassTier, parseMonthlyPassTiers } from "./monthly-pass-pricing";
+import { calculateMonthlyPassAmountPaise } from "./monthly-pass-pricing";
 import { calculateFare } from "../ride/fare.service";
 
 function config() {
@@ -23,10 +23,6 @@ async function razorpay(path: string, init: RequestInit = {}) {
   const body = await response.json().catch(() => ({})) as any;
   if (!response.ok) throw new Error(response.status === 401 ? "RAZORPAY_AUTH_FAILED" : "RAZORPAY_REQUEST_FAILED");
   return body;
-}
-
-export function listMonthlyPassTiers() {
-  return parseMonthlyPassTiers(process.env.MONTHLY_PASS_TIERS_JSON);
 }
 
 export type MonthlyPassRoute = {
@@ -70,7 +66,7 @@ export async function createMonthlyPassOrder(userId: string, route: MonthlyPassR
     }),
   });
   if (!order?.id || Number(order.amount) !== amountPaise || order.currency !== "INR") throw new Error("RAZORPAY_ORDER_INVALID");
-  await prisma.$executeRaw`INSERT INTO wallet_pass_payments(user_id,razorpay_order_id,amount_paise,currency,status,pass_months,tier_id,included_km,included_rides,remaining_rides,pickup_address,pickup_latitude,pickup_longitude,dropoff_address,dropoff_latitude,dropoff_longitude) VALUES(${userId}::uuid,${order.id},${amountPaise},'INR','PENDING',1,'route-30',0,${includedRides},${includedRides},${route.pickupAddress},${route.pickupLatitude},${route.pickupLongitude},${route.dropoffAddress},${route.dropoffLatitude},${route.dropoffLongitude})`;
+  await prisma.$executeRaw`INSERT INTO wallet_pass_payments(user_id,razorpay_order_id,amount_paise,currency,status,pass_months,included_rides,remaining_rides,pickup_address,pickup_latitude,pickup_longitude,dropoff_address,dropoff_latitude,dropoff_longitude) VALUES(${userId}::uuid,${order.id},${amountPaise},'INR','PENDING',1,${includedRides},${includedRides},${route.pickupAddress},${route.pickupLatitude},${route.pickupLongitude},${route.dropoffAddress},${route.dropoffLatitude},${route.dropoffLongitude})`;
   return {
     keyId: c.keyId,
     orderId: order.id,
@@ -93,7 +89,7 @@ export async function createMonthlyPassOrder(userId: string, route: MonthlyPassR
 
 async function activateCapturedPass(orderId: string, paymentId: string, amountPaise: number) {
   return prisma.$transaction(async tx => {
-    const rows = await tx.$queryRaw<Array<{id:string;user_id:string;amount_paise:number;status:string;pass_months:number;tier_id:string;included_km:number;included_rides:number;remaining_rides:number;pickup_address:string;pickup_latitude:number;pickup_longitude:number;dropoff_address:string;dropoff_latitude:number;dropoff_longitude:number}>>`SELECT id,user_id,amount_paise,status,pass_months,tier_id,included_km,included_rides,remaining_rides,pickup_address,pickup_latitude,pickup_longitude,dropoff_address,dropoff_latitude,dropoff_longitude FROM wallet_pass_payments WHERE razorpay_order_id=${orderId} FOR UPDATE`;
+    const rows = await tx.$queryRaw<Array<{id:string;user_id:string;amount_paise:number;status:string;pass_months:number;included_rides:number;remaining_rides:number;pickup_address:string;pickup_latitude:number;pickup_longitude:number;dropoff_address:string;dropoff_latitude:number;dropoff_longitude:number}>>`SELECT id,user_id,amount_paise,status,pass_months,included_rides,remaining_rides,pickup_address,pickup_latitude,pickup_longitude,dropoff_address,dropoff_latitude,dropoff_longitude FROM wallet_pass_payments WHERE razorpay_order_id=${orderId} FOR UPDATE`;
     const p = rows[0];
     if (!p) throw new Error("MONTHLY_PASS_ORDER_NOT_FOUND");
     if (Number(p.amount_paise) !== amountPaise) throw new Error("PAYMENT_AMOUNT_MISMATCH");
