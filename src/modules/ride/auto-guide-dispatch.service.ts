@@ -23,10 +23,15 @@ export async function dispatchGuide(rideId: string) {
   });
   if (existing) return existing;
 
-  const busyGuideIds = new Set((await prisma.guideAssignment.findMany({
-    where: { status: { in: ["OFFERED", "ACCEPTED"] } },
-    select: { guideId: true },
-  })).map((assignment) => assignment.guideId));
+  const [busyRows, triedRows] = await Promise.all([
+    prisma.guideAssignment.findMany({
+      where: { status: { in: ["OFFERED", "ACCEPTED"] } },
+      select: { guideId: true },
+    }),
+    prisma.guideAssignment.findMany({ where: { rideId }, select: { guideId: true } }),
+  ]);
+  const busyGuideIds = new Set(busyRows.map((assignment) => assignment.guideId));
+  const triedGuideIds = new Set(triedRows.map((assignment) => assignment.guideId));
 
   const guides = await prisma.guideProfile.findMany({
     where: {
@@ -42,7 +47,7 @@ export async function dispatchGuide(rideId: string) {
   });
   const pickup = normaliseCity(ride.pickupAddress);
   const candidates = guides
-    .filter((guide) => !busyGuideIds.has(guide.userId))
+    .filter((guide) => !busyGuideIds.has(guide.userId) && !triedGuideIds.has(guide.userId))
     .sort((a, b) => {
       const aMatch = pickup && normaliseCity(a.serviceCity) && pickup.includes(normaliseCity(a.serviceCity)) ? 1 : 0;
       const bMatch = pickup && normaliseCity(b.serviceCity) && pickup.includes(normaliseCity(b.serviceCity)) ? 1 : 0;
