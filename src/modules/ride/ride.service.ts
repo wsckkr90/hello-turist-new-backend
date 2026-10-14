@@ -99,3 +99,61 @@ export async function addRideEvent(userId:string,rideId:string,data:RideEventInp
 export async function listEvents(userId:string,rideId:string){await getRideForActor(rideId,userId);return prisma.rideEvent.findMany({where:{rideId},orderBy:{createdAt:"asc"}})}
 export async function listLocations(userId:string,rideId:string){await getRideForActor(rideId,userId);return prisma.rideLocation.findMany({where:{rideId},orderBy:{recordedAt:"asc"}})}
 export { requireApprovedGuide };
+
+/**
+ * Return the latest accepted provider location for a ride after validating
+ * the caller's ride access. Ride screens consume this via the authenticated
+ * SSE stream endpoint.
+ */
+export async function getRideTrackingSnapshot(userId: string, rideId: string) {
+  const ride = await getRideForActor(rideId, userId);
+  const acceptedDriverIds = ride.assignments
+    .filter((assignment) => assignment.status === "ACCEPTED")
+    .map((assignment) => assignment.driverId);
+  const acceptedGuideIds = ride.guideAssignments
+    .filter((assignment) => assignment.status === "ACCEPTED")
+    .map((assignment) => assignment.guideId);
+
+  let location: {
+    id: string;
+    latitude: unknown;
+    longitude: unknown;
+    accuracy: unknown;
+    recordedAt: Date;
+    driverId: string | null;
+    guideId: string | null;
+  } | null = null;
+
+  if (ride.serviceType === "GUIDE_ONLY" && acceptedGuideIds.length > 0) {
+    location = await prisma.rideLocation.findFirst({
+      where: { rideId, guideId: { in: acceptedGuideIds } },
+      orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
+      select: { id: true, latitude: true, longitude: true, accuracy: true, recordedAt: true, driverId: true, guideId: true },
+    });
+  } else if (acceptedDriverIds.length > 0) {
+    location = await prisma.rideLocation.findFirst({
+      where: { rideId, driverId: { in: acceptedDriverIds } },
+      orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
+      select: { id: true, latitude: true, longitude: true, accuracy: true, recordedAt: true, driverId: true, guideId: true },
+    });
+  } else if (ride.serviceType === "RIDE_AND_GUIDE" && acceptedGuideIds.length > 0) {
+    location = await prisma.rideLocation.findFirst({
+      where: { rideId, guideId: { in: acceptedGuideIds } },
+      orderBy: [{ recordedAt: "desc" }, { createdAt: "desc" }],
+      select: { id: true, latitude: true, longitude: true, accuracy: true, recordedAt: true, driverId: true, guideId: true },
+    });
+  }
+
+  return {
+    rideId: ride.id,
+    status: ride.status,
+    location: location ? {
+      id: location.id,
+      latitude: Number(location.latitude),
+      longitude: Number(location.longitude),
+      accuracy: location.accuracy == null ? null : Number(location.accuracy),
+      recordedAt: location.recordedAt.toISOString(),
+      providerRole: location.driverId ? "DRIVER" : "GUIDE",
+    } : null,
+  };
+}
