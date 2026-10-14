@@ -20,11 +20,13 @@ import { listAdminNotifications, sendAdminNotification } from "./notification.co
 import { listAdminPromotionsController, createAdminPromotionController, updateAdminPromotionController, deactivateAdminPromotionController } from "./promotion.controller";
 import { listAdminSupportTicketsController, replyAdminSupportTicketController, updateAdminSupportTicketController } from "./support-admin.controller";
 import { verifyUserPhoneByAdmin } from "./phone-verification.controller";
+import { getAdminLiveRideMonitoringController } from "./live-operations.controller";
 
 const router = Router();
 const admin = [authMiddleware, adminMiddleware] as const;
 const adminMutationLimit = redisRateLimit({ windowSeconds: 60, maxRequests: 60, keyPrefix: "rl:admin-mutation" });
 router.get("/analytics", ...admin, requirePermission("analytics.read"), getAdminAnalytics);
+router.get("/live-operations", ...admin, requirePermission("rides.read"), getAdminLiveRideMonitoringController);
 router.get("/users", ...admin, requirePermission("admin.permissions.read"), listAdminUsersController);
 router.get("/audit-logs", ...admin, requirePermission("audit.read"), listAuditLogsController);
 router.get("/finance/summary", ...admin, requirePermission("payments.read"), getFinanceSummary);
