@@ -118,7 +118,7 @@ export async function finalizeRideRecording(userId: string, rideId: string, publ
     throw new Error("RECORDING_CONTENT_TYPE_MISMATCH");
   }
 
-  const expiresAt = new Date(Date.now() + retentionDays * 86400000).toISOString();
+  const expiresAt = new Date(Date.now() + policy.retentionDays * 86400000).toISOString();
   const event = await prisma.rideEvent.create({
     data: {
       rideId,
