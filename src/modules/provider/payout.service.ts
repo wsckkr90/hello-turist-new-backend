@@ -229,23 +229,81 @@ export async function getDriverFinance(userId: string) {
   const [rides, payouts] = await Promise.all([
     prisma.ride.findMany({
       where: { status: "COMPLETED", assignments: { some: { driverId: userId, status: "ACCEPTED" } } },
-      select: { id: true, fareAmount: true, completedAt: true },
+      select: {
+        id: true, pickupAddress: true, dropoffAddress: true, fareAmount: true, fareCurrency: true,
+        paymentMethod: true, createdAt: true, completedAt: true,
+        payment: { select: { status: true, amount: true, provider: true, paidAt: true } },
+      },
       orderBy: { completedAt: "desc" }, take: 500,
     }),
     prisma.driverPayout.findMany({ where: { driverId: userId }, select: { rideId: true, amount: true, status: true, createdAt: true, updatedAt: true }, orderBy: { createdAt: "desc" }, take: 500 }),
   ]);
-  return summarizeProviderFinance(rides, payouts, indiaWindow());
+  const payoutByRide = new Map(payouts.filter((item) => item.rideId).map((item) => [item.rideId!, item]));
+  const rideHistory = rides.slice(0, 50).map((ride) => {
+    const payout = payoutByRide.get(ride.id);
+    return {
+      rideId: ride.id,
+      pickupAddress: ride.pickupAddress,
+      dropoffAddress: ride.dropoffAddress,
+      completedAt: ride.completedAt?.toISOString() ?? null,
+      createdAt: ride.createdAt.toISOString(),
+      grossFare: Number(ride.fareAmount ?? 0),
+      currency: ride.fareCurrency,
+      paymentMethod: ride.paymentMethod,
+      riderPaymentStatus: ride.paymentMethod === "MONTHLY_PASS"
+        ? "PASS_COVERED"
+        : ride.payment
+          ? String(ride.payment.status)
+          : ride.paymentMethod === "CASH" ? "CASH_ON_RIDE" : "NO_PAYMENT_RECORD",
+      riderPaymentAmount: ride.payment ? Number(ride.payment.amount) : null,
+      paymentProvider: ride.payment?.provider ?? null,
+      riderPaidAt: ride.payment?.paidAt?.toISOString() ?? null,
+      payoutAmount: payout ? Number(payout.amount) : 0,
+      payoutStatus: payout ? String(payout.status).toUpperCase() : "NOT_PAID",
+      payoutUpdatedAt: payout?.updatedAt.toISOString() ?? null,
+    };
+  });
+  return { ...summarizeProviderFinance(rides, payouts, indiaWindow()), rideHistory };
 }
 
 export async function getGuideFinance(userId: string) {
   await requireGuide(userId);
   const [rides, payouts] = await Promise.all([
     prisma.ride.findMany({
-      where: { status: "COMPLETED", guideAssignments: { some: { guideId: userId, status: "ACCEPTED" } } },
-      select: { id: true, fareAmount: true, completedAt: true },
+      where: { status: "COMPLETED", assignments: { some: { guideId: userId, status: "ACCEPTED" } } },
+      select: {
+        id: true, pickupAddress: true, dropoffAddress: true, fareAmount: true, fareCurrency: true,
+        paymentMethod: true, createdAt: true, completedAt: true,
+        payment: { select: { status: true, amount: true, provider: true, paidAt: true } },
+      },
       orderBy: { completedAt: "desc" }, take: 500,
     }),
     prisma.guidePayout.findMany({ where: { guideId: userId }, select: { rideId: true, amount: true, status: true, createdAt: true, updatedAt: true }, orderBy: { createdAt: "desc" }, take: 500 }),
   ]);
-  return summarizeProviderFinance(rides, payouts, indiaWindow());
+  const payoutByRide = new Map(payouts.filter((item) => item.rideId).map((item) => [item.rideId!, item]));
+  const rideHistory = rides.slice(0, 50).map((ride) => {
+    const payout = payoutByRide.get(ride.id);
+    return {
+      rideId: ride.id,
+      pickupAddress: ride.pickupAddress,
+      dropoffAddress: ride.dropoffAddress,
+      completedAt: ride.completedAt?.toISOString() ?? null,
+      createdAt: ride.createdAt.toISOString(),
+      grossFare: Number(ride.fareAmount ?? 0),
+      currency: ride.fareCurrency,
+      paymentMethod: ride.paymentMethod,
+      riderPaymentStatus: ride.paymentMethod === "MONTHLY_PASS"
+        ? "PASS_COVERED"
+        : ride.payment
+          ? String(ride.payment.status)
+          : ride.paymentMethod === "CASH" ? "CASH_ON_RIDE" : "NO_PAYMENT_RECORD",
+      riderPaymentAmount: ride.payment ? Number(ride.payment.amount) : null,
+      paymentProvider: ride.payment?.provider ?? null,
+      riderPaidAt: ride.payment?.paidAt?.toISOString() ?? null,
+      payoutAmount: payout ? Number(payout.amount) : 0,
+      payoutStatus: payout ? String(payout.status).toUpperCase() : "NOT_PAID",
+      payoutUpdatedAt: payout?.updatedAt.toISOString() ?? null,
+    };
+  });
+  return { ...summarizeProviderFinance(rides, payouts, indiaWindow()), rideHistory };
 }
