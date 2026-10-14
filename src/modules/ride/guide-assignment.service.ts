@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { prisma } from "../../core/prisma";
 import { notifyUser } from "../notification/notification.service";
+import { scheduleGuideRetry } from "./auto-guide-dispatch.service";
 
 async function requireApprovedGuide(userId: string) {
   const role = await prisma.userRoleAssignment.findUnique({
@@ -85,7 +86,8 @@ export async function rejectGuideAssignment(userId: string, rideId: string, assi
     return tx.guideAssignment.findUnique({ where: { id: assignmentId } });
   });
   const ride = await prisma.ride.findUnique({ where: { id: rideId }, select: { riderId: true } });
-  if (ride) void notifyUser(ride.riderId, "Guide declined", "The selected guide declined the trip.", { rideId, assignmentId, status: result?.status }).catch(() => undefined);
+  if (ride) void notifyUser(ride.riderId, "Guide declined", "The selected guide declined the trip. We are searching for another available guide.", { rideId, assignmentId, status: result?.status }).catch(() => undefined);
+  scheduleGuideRetry(rideId, 1);
   return result;
 }
 

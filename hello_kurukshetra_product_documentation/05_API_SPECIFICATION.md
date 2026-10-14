@@ -71,7 +71,7 @@ Base path: `/api/v1`
 - POST `/rides/:id/assignments/:assignmentId/accept`
 - POST `/rides/:id/assignments/:assignmentId/reject`
 
-Guide assignments are available only for `GUIDE_ONLY` and `RIDE_AND_GUIDE` services and require server-side guide verification and availability.
+Guide assignments are available only for `GUIDE_ONLY` and `RIDE_AND_GUIDE` services and require server-side guide verification and availability. Ride creation automatically offers an eligible, available guide for these service types and retries when no guide is available; a guide rejection triggers another search. The client should show the urgent support-call fallback after 10 seconds if a required driver or guide assignment is still missing.
 
 ## Maps/Search
 - GET `/places/autocomplete`

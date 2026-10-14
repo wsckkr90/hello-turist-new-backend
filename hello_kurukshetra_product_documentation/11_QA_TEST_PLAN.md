@@ -22,7 +22,7 @@ OTP success/failure/rate-limit, Google auth, expired refresh token, logout-all.
 Document upload, invalid file, expired document, rejection, resubmission, live verification, permission checks.
 
 ### Booking
-Quote, confirmation, duplicate request, no supply, assignment timeout, driver rejection, cancellation.
+Quote, confirmation, duplicate request, no driver/guide supply, automatic driver and guide offer, guide rejection and reassignment, 10-second urgent-call fallback, cancellation.
 
 ### Trip
 Arriving, arrived, start, progress, completion, GPS loss, network loss, reconnect and process death.
