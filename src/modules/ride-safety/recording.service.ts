@@ -14,18 +14,34 @@ async function assertActiveRideAccess(userId: string, rideId: string) {
   const isAcceptedDriver = ride.assignments.some((a) => a.driverId === userId && a.status === "ACCEPTED");
   const isAcceptedGuide = ride.guideAssignments.some((a) => a.guideId === userId && a.status === "ACCEPTED");
   if (!isRider && !isAcceptedDriver && !isAcceptedGuide) throw new Error("RIDE_ACCESS_DENIED");
-  if (!RIDE_RECORDING_POLICY.recordingOnlyWhileRideActive || !["ASSIGNED", "DRIVER_ARRIVING", "IN_PROGRESS"].includes(ride.status)) {
+  if (!RIDE_RECORDING_POLICY.recordingOnlyWhileRideActive || !["ASSIGNED", "DRIVER_ARRIVING", "DRIVER_ARRIVED", "IN_PROGRESS", "NEAR_DESTINATION"].includes(ride.status)) {
     throw new Error("RECORDING_ONLY_DURING_ACTIVE_RIDE");
   }
   return ride;
 }
 
 async function assertConsent(rideId: string) {
-  const event = await prisma.rideEvent.findFirst({
-    where: { rideId, type: "RECORDING_CONSENT", payload: { path: ["consent"], equals: true } },
-    orderBy: { createdAt: "desc" },
-  });
-  if (!event) throw new Error("RECORDING_CONSENT_REQUIRED");
+  const [riderConsent, providerConsent] = await Promise.all([
+    prisma.rideEvent.findFirst({
+      where: {
+        rideId,
+        type: "RECORDING_CONSENT",
+        payload: { path: ["consent"], equals: true },
+        AND: { payload: { path: ["consenterRole"], equals: "RIDER" } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.rideEvent.findFirst({
+      where: {
+        rideId,
+        type: "RECORDING_CONSENT",
+        payload: { path: ["consent"], equals: true },
+        AND: { payload: { path: ["consenterRole"], equals: "PROVIDER" } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+  if (!riderConsent || !providerConsent) throw new Error("RECORDING_CONSENT_REQUIRED");
 }
 
 function normalizeMedia(contentType: string) {
