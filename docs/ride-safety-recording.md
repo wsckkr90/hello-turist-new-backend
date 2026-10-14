@@ -19,8 +19,15 @@ Audio/video recording is a safety feature for active rides. It is not a general-
 7. Upload recordings directly to Cloudinary using a short-lived backend-generated signed upload request.
 8. Store only the Cloudinary public ID/reference in the application database; recordings use Cloudinary's authenticated delivery type.
 
+## Recording policy controls
+- `GET /api/v1/safety/recording-policy` exposes the current policy to authenticated mobile clients.
+- Admins with `emergency.read` can view `GET /api/v1/admin/safety/recording`; admins with `emergency.manage` can update it with `PUT /api/v1/admin/safety/recording`.
+- The policy is stored in `app_settings` under `RIDE_SAFETY_RECORDING_POLICY`, and policy updates are audit logged.
+- Recording uploads are disabled by default. An admin must deliberately enable the server-side policy after the mobile recording lifecycle is deployed.
+- Retention is configurable from 1–365 days; rider consent and acknowledgement from every accepted driver/guide are hard safety requirements and cannot be disabled.
+
 ## Backend recording API
-- `POST /api/v1/rides/:id/recording-consent` records the explicit consent event.
+- `POST /api/v1/rides/:id/recording-consent` records explicit consent from the rider or an accepted driver/guide.
 - `POST /api/v1/rides/:id/recordings/upload-url` validates ride access and consent, then returns a short-lived Cloudinary signed upload request for `video/mp4` or `audio/m4a`.
 - The mobile client uploads the file directly to Cloudinary using the returned `uploadUrl` and `uploadParams`.
 - `POST /api/v1/rides/:id/recordings/complete` verifies that the authenticated Cloudinary asset exists and matches the requested media type before recording the database event.
@@ -53,4 +60,4 @@ RIDE_RECORDING_RETENTION_DAYS=30
 Cloudinary is now the backend media-storage provider; the previous R2 variables are no longer required for production media/ride recordings.
 
 ## Implementation status
-Backend consent validation, authenticated Cloudinary signed uploads, upload verification, signed access URLs, generic media uploads, and retention deletion are implemented. Android camera/microphone runtime permission UI and the client-side recording lifecycle still need to be wired to these endpoints before the mobile feature is represented as fully production-ready.
+Backend policy persistence, consent validation (including accepted guide acknowledgements), authenticated Cloudinary signed uploads, upload verification, signed access URLs, and retention deletion are implemented. Recordings are stored in private Cloudinary storage when the backend upload flow is used; they are not currently guaranteed to remain only on the user's phone. Android camera/microphone runtime permission UI and the client-side recording lifecycle still need to be wired to these endpoints before the mobile feature is represented as fully production-ready. Keep the server-side recording switch disabled until those client safeguards ship.
