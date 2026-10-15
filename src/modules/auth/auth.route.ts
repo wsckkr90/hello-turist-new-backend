@@ -11,6 +11,7 @@ import {
   googleAuth,
 } from "./social-auth.controller";
 import { requestOtpController, verifyOtpController, firebasePhoneController } from "./otp.controller";
+import { requestAccountVerification, getAccountVerificationStatus } from "./account-verification.controller";
 import { authMiddleware } from "../../middleware/auth";
 import { redisRateLimit } from "../../middleware/rate-limit";
 
@@ -40,6 +41,12 @@ const otpVerifyLimit = redisRateLimit({
   keyPrefix: "rl:otp-verify",
 });
 
+const accountVerificationLimit = redisRateLimit({
+  windowSeconds: 15 * 60,
+  maxRequests: 3,
+  keyPrefix: "rl:account-verification",
+});
+
 // Every new local account must include a mobile number.
 router.post("/register", authAttemptLimit, registerWithPhone);
 // Google account creation/login requires a mobile number before a backend session is issued.
@@ -53,4 +60,7 @@ router.post("/refresh", refreshLimit, refresh);
 router.post("/logout", authMiddleware, logout);
 router.post("/logout-all", authMiddleware, logoutAll);
 router.delete("/account", authMiddleware, deleteAccount);
+// User-controlled request: the selected SMS/CALL method is persisted for admin review.
+router.post("/account-verification/request", authMiddleware, accountVerificationLimit, requestAccountVerification);
+router.get("/account-verification/status", authMiddleware, getAccountVerificationStatus);
 export default router;
