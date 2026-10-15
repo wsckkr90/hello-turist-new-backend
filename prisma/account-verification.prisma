@@ -1,0 +1,13 @@
+model AccountVerificationRequest {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @unique @map("user_id") @db.Uuid
+  status      String   @default("PENDING")
+  method      String   @map("verification_method")
+  requestedAt DateTime @default(now()) @map("requested_at")
+  reviewedAt  DateTime? @map("reviewed_at")
+  rejectionReason String? @map("rejection_reason")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, requestedAt])
+  @@map("account_verification_requests")
+}
