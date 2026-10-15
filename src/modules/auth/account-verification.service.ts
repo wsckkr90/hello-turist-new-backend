@@ -16,11 +16,11 @@ export async function createAccountVerificationRequest(userId: string, method: A
     INSERT INTO "account_verification_requests" ("id", "user_id", "status", "verification_method", "requested_at")
     VALUES (gen_random_uuid(), ${userId}::uuid, 'PENDING', ${method}, CURRENT_TIMESTAMP)
     ON CONFLICT ("user_id") DO UPDATE SET
-      "status" = CASE WHEN "account_verification_requests"."status" = 'APPROVED' THEN 'PENDING' ELSE "account_verification_requests"."status" END,
+      "status" = CASE WHEN "account_verification_requests"."status" IN ('APPROVED','REJECTED') THEN 'PENDING' ELSE "account_verification_requests"."status" END,
       "verification_method" = EXCLUDED."verification_method",
-      "requested_at" = CASE WHEN "account_verification_requests"."status" = 'APPROVED' THEN CURRENT_TIMESTAMP ELSE "account_verification_requests"."requested_at" END,
-      "reviewed_at" = CASE WHEN "account_verification_requests"."status" = 'APPROVED' THEN NULL ELSE "account_verification_requests"."reviewed_at" END,
-      "rejection_reason" = CASE WHEN "account_verification_requests"."status" = 'APPROVED' THEN NULL ELSE "account_verification_requests"."rejection_reason" END
+      "requested_at" = CASE WHEN "account_verification_requests"."status" IN ('APPROVED','REJECTED') THEN CURRENT_TIMESTAMP ELSE "account_verification_requests"."requested_at" END,
+      "reviewed_at" = CASE WHEN "account_verification_requests"."status" IN ('APPROVED','REJECTED') THEN NULL ELSE "account_verification_requests"."reviewed_at" END,
+      "rejection_reason" = CASE WHEN "account_verification_requests"."status" IN ('APPROVED','REJECTED') THEN NULL ELSE "account_verification_requests"."rejection_reason" END
     RETURNING "id", "user_id" AS "userId", "status", "verification_method" AS "method", "requested_at" AS "requestedAt", "reviewed_at" AS "reviewedAt", "rejection_reason" AS "rejectionReason"
   `);
 
@@ -59,7 +59,7 @@ export async function decideAccountVerificationRequest(id: string, status: "APPR
     SELECT "id", "user_id" AS "userId", "status" FROM "account_verification_requests" WHERE "id" = ${id}::uuid
   `);
   if (!existing[0]) throw new Error("REQUEST_NOT_FOUND");
-  if (!['PENDING','REJECTED'].includes(existing[0].status)) throw new Error("REQUEST_ALREADY_DECIDED");
+  if (!["PENDING","REJECTED"].includes(existing[0].status)) throw new Error("REQUEST_ALREADY_DECIDED");
   if (status === "REJECTED" && !rejectionReason?.trim()) throw new Error("REJECTION_REASON_REQUIRED");
 
   const result = await prisma.$transaction(async (tx) => {
