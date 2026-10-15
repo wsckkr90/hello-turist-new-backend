@@ -14,14 +14,25 @@ export const registerWithPhoneSchema = z.object({
   termsAccepted: z.literal(true),
   termsVersion: z.string().trim().min(1).max(40).default("2026-10-13"),
   phone: z.string().trim().min(8).max(20),
-  idToken: z.string().trim().min(20),
+  idToken: z.string().trim().min(20).optional(),
+  manualVerification: z.boolean().optional().default(false),
+  manualVerificationMethod: z.enum(["SMS", "CALL"]).optional(),
+}).superRefine((value, ctx) => {
+  if (value.manualVerification) {
+    if (!value.manualVerificationMethod) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["manualVerificationMethod"], message: "Choose SMS or CALL" });
+    }
+    return;
+  }
+  if (!value.idToken) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["idToken"], message: "Phone verification is required" });
+  }
 });
 
 export const googleAuthSchema = z.object({
   idToken: z.string().trim().min(20),
   phone: z.string().trim().min(8).max(20).optional(),
   phoneIdToken: z.string().trim().min(20).optional(),
-  // Required only when this Google identity creates a new account.
   termsAccepted: z.literal(true).optional(),
   termsVersion: z.string().trim().min(1).max(40).optional(),
 });
