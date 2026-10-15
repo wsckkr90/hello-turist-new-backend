@@ -5,6 +5,7 @@ import {
   loginWithGoogle,
   registerUserWithPhone,
 } from "./social-auth.service";
+import { registerUserWithManualPhoneVerification } from "./manual-registration.service";
 
 export const registerWithPhoneSchema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -53,7 +54,16 @@ export async function registerWithPhone(req: Request, res: Response) {
   }
 
   try {
-    const user = await registerUserWithPhone(parsed.data);
+    const user = parsed.data.manualVerification
+      ? await registerUserWithManualPhoneVerification({
+          ...parsed.data,
+          manualVerificationMethod: parsed.data.manualVerificationMethod!,
+        })
+      : await registerUserWithPhone({
+          ...parsed.data,
+          idToken: parsed.data.idToken!,
+        });
+
     return res.status(201).json({
       success: true,
       data: { user },
