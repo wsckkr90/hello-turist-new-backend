@@ -64,10 +64,9 @@ export async function searchAndOfferGuide(userId: string, rideId: string, guideI
 
     const existingForSelectedGuide = await tx.guideAssignment.findUnique({
       where: { rideId_guideId: { rideId, guideId } },
-      select: { id: true, status: true },
     });
     if (existingForSelectedGuide && ["OFFERED", "ACCEPTED"].includes(existingForSelectedGuide.status)) {
-      throw new Error("GUIDE_ASSIGNMENT_EXISTS");
+      return { assignment: existingForSelectedGuide, previousGuideIds: [] as string[], unchanged: true };
     }
 
     const [currentUser, currentProfile, busyElsewhere] = await Promise.all([
@@ -117,21 +116,24 @@ export async function searchAndOfferGuide(userId: string, rideId: string, guideI
     return {
       assignment,
       previousGuideIds: [...new Set(previousAssignments.map((item) => item.guideId))],
+      unchanged: false,
     };
   }, { isolationLevel: "Serializable", maxWait: 5_000, timeout: 10_000 });
 
-  for (const previousGuideId of result.previousGuideIds) {
-    if (previousGuideId === guideId) continue;
-    void notifyUser(previousGuideId, "Guide assignment updated", "An administrator changed the guide assignment for this trip.", {
-      destination: "RIDE", notification_type: "RIDE", rideId, status: "EXPIRED",
+  if (!result.unchanged) {
+    for (const previousGuideId of result.previousGuideIds) {
+      if (previousGuideId === guideId) continue;
+      void notifyUser(previousGuideId, "Guide assignment updated", "An administrator changed the guide assignment for this trip.", {
+        destination: "RIDE", notification_type: "RIDE", rideId, status: "EXPIRED",
+      }).catch(() => undefined);
+    }
+    void notifyUser(guideId, "New guide assignment", "An administrator offered you this trip. Please accept or reject it.", {
+      destination: "RIDE", notification_type: "RIDE", rideId, assignmentId: result.assignment.id, status: result.assignment.status,
+    }).catch(() => undefined);
+    void notifyUser(ride.riderId, "Guide assigned", "A guide has been offered for your trip. The app will update when the guide responds.", {
+      destination: "RIDE", notification_type: "RIDE", rideId, guideId, assignmentId: result.assignment.id, status: result.assignment.status,
     }).catch(() => undefined);
   }
-  void notifyUser(guideId, "New guide assignment", "An administrator offered you this trip. Please accept or reject it.", {
-    destination: "RIDE", notification_type: "RIDE", rideId, assignmentId: result.assignment.id, status: result.assignment.status,
-  }).catch(() => undefined);
-  void notifyUser(ride.riderId, "Guide assigned", "A guide has been offered for your trip. The app will update when the guide responds.", {
-    destination: "RIDE", notification_type: "RIDE", rideId, guideId, assignmentId: result.assignment.id, status: result.assignment.status,
-  }).catch(() => undefined);
   return result.assignment;
 }
 
