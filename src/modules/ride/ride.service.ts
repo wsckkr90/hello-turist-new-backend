@@ -20,7 +20,118 @@ export async function createRide(userId:string,data:CreateRideInput){if(data.ser
 export async function getRide(userId:string,rideId:string){return getRideForActor(rideId,userId)}
 export async function listRides(userId:string,status?:string,limit=20,cursor?:string){return prisma.ride.findMany({where:{riderId:userId,...(status?{status:status as any}:{})},orderBy:{createdAt:"desc"},take:limit+1,...(cursor?{cursor:{id:cursor},skip:1}:{}),include:{assignments:{where:{status:"ACCEPTED"},take:1},guideAssignments:{where:{status:"ACCEPTED"},take:1}}})}
 export async function cancelRide(userId:string,rideId:string,data:CancelRideInput){const ride=await prisma.ride.findUnique({where:{id:rideId}});if(!ride)throw new Error("RIDE_NOT_FOUND");if(ride.riderId!==userId)throw new Error("RIDE_ACCESS_DENIED");if(["COMPLETED","CANCELLED"].includes(ride.status))throw new Error("INVALID_RIDE_STATE");const updated=await prisma.$transaction(async tx=>{const r=await tx.ride.update({where:{id:rideId},data:{status:"CANCELLED",cancelledAt:new Date(),cancellationReason:data.reason},include:rideInclude});await tx.rideEvent.create({data:{rideId,actorUserId:userId,type:"CANCELLED",payload:{reason:data.reason}}});return r});const d=updated.assignments.find(a=>a.status==="ACCEPTED");if(d)void notifyUser(d.driverId,"Ride cancelled","The rider cancelled the ride.",{rideId,status:updated.status}).catch(()=>undefined);void notifyUser(userId,"Ride cancelled","Your ride has been cancelled.",{rideId,status:updated.status}).catch(()=>undefined);return updated}
-export async function assignRide(userId:string,rideId:string,data:AssignRideInput){const admin=await prisma.userRoleAssignment.findUnique({where:{userId_role:{userId,role:"ADMIN"}}});if(!admin)throw new Error("ADMIN_REQUIRED");await requireApprovedDriver(data.driverId);const ride=await prisma.ride.findUnique({where:{id:rideId}});if(!ride)throw new Error("RIDE_NOT_FOUND");if(ride.serviceType==="GUIDE_ONLY")throw new Error("DRIVER_NOT_REQUIRED");if(!["REQUESTED","SEARCHING"].includes(ride.status))throw new Error("INVALID_RIDE_STATE");const assignment=await prisma.$transaction(async tx=>{const c=await tx.rideAssignment.create({data:{rideId,driverId:data.driverId,status:"OFFERED"}});await tx.ride.update({where:{id:rideId},data:{status:"ASSIGNED"}});await tx.rideEvent.create({data:{rideId,actorUserId:userId,type:"DRIVER_ASSIGNED",payload:{driverId:data.driverId}}});return c});void notifyUser(ride.riderId,"Driver assigned","A driver has been assigned to your ride.",{rideId,driverId:data.driverId,status:"ASSIGNED"}).catch(()=>undefined);void notifyUser(data.driverId,"New ride assigned","You have a new ride assignment. Please accept or reject it.",{rideId,status:assignment.status}).catch(()=>undefined);return assignment}
+export async function assignRide(userId: string, rideId: string, data: AssignRideInput) {
+  const admin = await prisma.userRoleAssignment.findUnique({
+    where: { userId_role: { userId, role: "ADMIN" } },
+    select: { id: true },
+  });
+  if (!admin) throw new Error("ADMIN_REQUIRED");
+
+  await requireApprovedDriver(data.driverId);
+  const [driverUser, driverProfile] = await Promise.all([
+    prisma.user.findUnique({ where: { id: data.driverId }, select: { status: true } }),
+    prisma.driverProfile.findUnique({ where: { userId: data.driverId }, select: { isAvailable: true } }),
+  ]);
+  if (driverUser?.status !== "ACTIVE" || !driverProfile?.isAvailable) {
+    throw new Error("DRIVER_NOT_AVAILABLE");
+  }
+
+  const ride = await prisma.ride.findUnique({
+    where: { id: rideId },
+    select: { id: true, riderId: true, status: true, serviceType: true },
+  });
+  if (!ride) throw new Error("RIDE_NOT_FOUND");
+  if (ride.serviceType === "GUIDE_ONLY") throw new Error("DRIVER_NOT_REQUIRED");
+  if (!["REQUESTED", "SEARCHING", "ASSIGNED"].includes(ride.status)) {
+    throw new Error("INVALID_RIDE_STATE");
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    const currentRide = await tx.ride.findUnique({
+      where: { id: rideId },
+      select: { id: true, riderId: true, status: true, serviceType: true },
+    });
+    if (!currentRide) throw new Error("RIDE_NOT_FOUND");
+    if (currentRide.serviceType === "GUIDE_ONLY") throw new Error("DRIVER_NOT_REQUIRED");
+    if (!["REQUESTED", "SEARCHING", "ASSIGNED"].includes(currentRide.status)) {
+      throw new Error("INVALID_RIDE_STATE");
+    }
+
+    const activeForSelectedDriver = await tx.rideAssignment.findFirst({
+      where: { rideId, driverId: data.driverId, status: { in: ["OFFERED", "ACCEPTED"] } },
+      orderBy: { createdAt: "desc" },
+    });
+    if (activeForSelectedDriver) {
+      return { assignment: activeForSelectedDriver, previousDriverIds: [] as string[], unchanged: true };
+    }
+
+    const [currentUser, currentProfile, busyAssignment] = await Promise.all([
+      tx.user.findUnique({ where: { id: data.driverId }, select: { status: true } }),
+      tx.driverProfile.findUnique({ where: { userId: data.driverId }, select: { isAvailable: true } }),
+      tx.rideAssignment.findFirst({
+        where: { driverId: data.driverId, status: { in: ["OFFERED", "ACCEPTED"] }, rideId: { not: rideId } },
+        select: { id: true },
+      }),
+    ]);
+    if (currentUser?.status !== "ACTIVE" || !currentProfile?.isAvailable || busyAssignment) {
+      throw new Error("DRIVER_NOT_AVAILABLE");
+    }
+
+    const previousAssignments = await tx.rideAssignment.findMany({
+      where: { rideId, status: { in: ["OFFERED", "ACCEPTED"] } },
+      select: { driverId: true },
+    });
+    await tx.rideAssignment.updateMany({
+      where: { rideId, status: { in: ["OFFERED", "ACCEPTED"] } },
+      data: { status: "EXPIRED", rejectedAt: new Date() },
+    });
+
+    const assignment = await tx.rideAssignment.create({
+      data: { rideId, driverId: data.driverId, status: "OFFERED" },
+    });
+    await tx.ride.update({ where: { id: rideId }, data: { status: "ASSIGNED" } });
+    await tx.rideEvent.create({
+      data: {
+        rideId,
+        actorUserId: userId,
+        type: "DRIVER_ASSIGNED",
+        payload: {
+          driverId: data.driverId,
+          assignmentId: assignment.id,
+          dispatch: "ADMIN",
+          replacedDriverIds: previousAssignments.map((item) => item.driverId),
+        },
+      },
+    });
+    return {
+      assignment,
+      previousDriverIds: [...new Set(previousAssignments.map((item) => item.driverId))],
+      unchanged: false,
+    };
+  }, { isolationLevel: "Serializable", maxWait: 5_000, timeout: 10_000 });
+
+  if (!result.unchanged) {
+    for (const previousDriverId of result.previousDriverIds) {
+      if (previousDriverId === data.driverId) continue;
+      void notifyUser(previousDriverId, "Ride assignment updated", "An administrator changed the driver assignment for this ride.", {
+        rideId,
+        status: "EXPIRED",
+      }).catch(() => undefined);
+    }
+    void notifyUser(data.driverId, "New ride assignment", "An administrator assigned this ride to you. Please accept or reject the offer.", {
+      rideId,
+      assignmentId: result.assignment.id,
+      status: result.assignment.status,
+    }).catch(() => undefined);
+    void notifyUser(ride.riderId, "Driver assigned", "A driver has been offered your ride. The app will update when the driver responds.", {
+      rideId,
+      driverId: data.driverId,
+      assignmentId: result.assignment.id,
+      status: "ASSIGNED",
+    }).catch(() => undefined);
+  }
+  return result.assignment;
+}
 export async function acceptRide(userId:string,rideId:string){await requireApprovedDriver(userId);const rideState=await prisma.ride.findUnique({where:{id:rideId},select:{status:true}});if(!rideState)throw new Error("RIDE_NOT_FOUND");if(rideState.status!=="ASSIGNED")throw new Error("INVALID_RIDE_STATE");const a=await requireDriverAssignment(userId,rideId,"OFFERED");if(a.status!=="OFFERED")throw new Error("INVALID_ASSIGNMENT_STATE");const u=await prisma.$transaction(async tx=>{const accepted=await tx.rideAssignment.findFirst({where:{rideId,status:"ACCEPTED"},select:{id:true}});if(accepted)throw new Error("RIDE_ALREADY_ACCEPTED");const updated=await tx.rideAssignment.updateMany({where:{id:a.id,rideId,driverId:userId,status:"OFFERED"},data:{status:"ACCEPTED",acceptedAt:new Date()}});if(updated.count!==1)throw new Error("INVALID_ASSIGNMENT_STATE");await tx.ride.update({where:{id:rideId},data:{status:"ASSIGNED"}});await tx.rideEvent.create({data:{rideId,actorUserId:userId,type:"DRIVER_ACCEPTED"}});return tx.rideAssignment.findUnique({where:{id:a.id}})}, {isolationLevel:"Serializable"});const ride=await prisma.ride.findUnique({where:{id:rideId},select:{riderId:true}});if(ride)void notifyUser(ride.riderId,"Driver accepted","Your driver accepted the ride.",{rideId,status:u?.status}).catch(()=>undefined);return u}
 export async function rejectRide(userId:string,rideId:string){await requireApprovedDriver(userId);const a=await requireDriverAssignment(userId,rideId);if(a.status!=="OFFERED")throw new Error("INVALID_ASSIGNMENT_STATE");const u=await prisma.$transaction(async tx=>{const r=await prisma.rideAssignment.updateMany({where:{id:a.id,rideId,driverId:userId,status:"OFFERED"},data:{status:"REJECTED",rejectedAt:new Date()}});if(r.count!==1)throw new Error("INVALID_ASSIGNMENT_STATE");const remaining=await tx.rideAssignment.count({where:{rideId,status:{in:["OFFERED","ACCEPTED"]}}});if(remaining===0)await tx.ride.update({where:{id:rideId},data:{status:"SEARCHING"}});await tx.rideEvent.create({data:{rideId,actorUserId:userId,type:"DRIVER_REJECTED"}});return tx.rideAssignment.findUnique({where:{id:a.id}})});const ride=await prisma.ride.findUnique({where:{id:rideId},select:{riderId:true}});if(ride)void notifyUser(ride.riderId,"Driver declined","The assigned driver declined the ride. We are searching again.",{rideId,status:"SEARCHING"}).catch(()=>undefined);scheduleRideRetry(rideId,1);return u}
 export async function addLocation(userId: string, rideId: string, data: LocationInput) {
