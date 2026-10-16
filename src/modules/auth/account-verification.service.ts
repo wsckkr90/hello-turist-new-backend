@@ -56,7 +56,7 @@ export async function listAccountVerificationRequests(input: { page: number; lim
 
 export async function decideAccountVerificationRequest(id: string, status: "APPROVED" | "REJECTED", rejectionReason?: string) {
   const existing = await prisma.$queryRaw<any[]>(Prisma.sql`
-    SELECT "id", "user_id" AS "userId", "status" FROM "account_verification_requests" WHERE "id" = ${id}::uuid
+    SELECT "id", "user_id" AS "userId", "status", "verification_method" AS "method" FROM "account_verification_requests" WHERE "id" = ${id}::uuid
   `);
   if (!existing[0]) throw new Error("REQUEST_NOT_FOUND");
   if (!["PENDING","REJECTED"].includes(existing[0].status)) throw new Error("REQUEST_ALREADY_DECIDED");
@@ -70,7 +70,15 @@ export async function decideAccountVerificationRequest(id: string, status: "APPR
       WHERE "id" = ${id}::uuid
     `);
     if (status === "APPROVED") {
-      await tx.user.update({ where: { id: existing[0].userId }, data: { status: "ACTIVE" } });
+      await tx.user.update({
+        where: { id: existing[0].userId },
+        data: {
+          status: "ACTIVE",
+          phoneVerificationStatus: "VERIFIED",
+          phoneVerifiedAt: now,
+          phoneVerificationMethod: existing[0].method,
+        },
+      });
     }
     const rows = await tx.$queryRaw<any[]>(Prisma.sql`
       SELECT "id", "user_id" AS "userId", "status", "verification_method" AS "method", "requested_at" AS "requestedAt", "reviewed_at" AS "reviewedAt", "rejection_reason" AS "rejectionReason"
