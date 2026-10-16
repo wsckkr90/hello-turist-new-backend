@@ -241,6 +241,103 @@ export async function registerUserWithPhone(input: {
   return { ...user, phone: requestedPhone };
 }
 
+export async function requestGoogleManualPhoneVerification(input: {
+  idToken: string;
+  phone: string;
+  manualVerificationMethod: "SMS" | "CALL";
+  termsAccepted: true;
+  termsVersion: string;
+}) {
+  if (!input.idToken.trim()) throw new Error("INVALID_FIREBASE_ID_TOKEN");
+  if (input.termsAccepted !== true || !input.termsVersion.trim()) {
+    throw new Error("TERMS_CONSENT_REQUIRED");
+  }
+  const method = input.manualVerificationMethod;
+  if (method !== "SMS" && method !== "CALL") {
+    throw new Error("MANUAL_VERIFICATION_METHOD_REQUIRED");
+  }
+
+  const requestedPhone = validatePhone(input.phone);
+  if (await findUserByPhone(requestedPhone)) throw new Error("PHONE_ALREADY_EXISTS");
+
+  const decoded = await verifyFirebaseIdToken(input.idToken.trim());
+  const firebaseUid = decoded.uid;
+  if (await findUserByFirebaseUid(firebaseUid)) {
+    throw new Error("GOOGLE_ACCOUNT_ALREADY_LINKED");
+  }
+
+  const email = typeof decoded.email === "string" ? decoded.email.trim().toLowerCase() : undefined;
+  if (email) {
+    const existingEmail = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (existingEmail) throw new Error("EMAIL_ALREADY_EXISTS");
+  }
+
+  const name =
+    typeof decoded.name === "string" && decoded.name.trim()
+      ? decoded.name.trim()
+      : email?.split("@")[0] || "Google user";
+
+  const base = (email?.split("@")[0] || `google_${firebaseUid}`)
+    .toLowerCase()
+    .replace(/[^a-z0-9_.-]/g, "")
+    .slice(0, 50) || `google_${firebaseUid.slice(0, 20)}`;
+
+  let username = base;
+  let suffix = 0;
+  while (true) {
+    const existing = await prisma.user.findUnique({
+      where: { username },
+      select: { id: true },
+    });
+    if (!existing) break;
+    suffix += 1;
+    username = `${base.slice(0, 70 - String(suffix).length)}_${suffix}`;
+  }
+
+  const created = await registerUser({
+    name,
+    username,
+    email,
+    password: crypto.randomBytes(48).toString("base64url"),
+    termsAccepted: input.termsAccepted,
+    termsVersion: input.termsVersion.trim(),
+  });
+
+  try {
+    await prisma.user.update({
+      where: { id: created.id },
+      data: {
+        firebaseUid,
+        phone: requestedPhone,
+        status: "SUSPENDED",
+        phoneVerificationStatus: "PENDING",
+        phoneVerificationMethod: `MANUAL_${method}`,
+      },
+    });
+    await createAccountVerificationRequest(created.id, method);
+  } catch (error) {
+    // Do not leave an orphaned Google account if the admin-review request
+    // cannot be persisted.
+    await prisma.user.delete({ where: { id: created.id } }).catch(() => undefined);
+    throw error;
+  }
+
+  return {
+    manualVerificationPending: true,
+    user: {
+      ...created,
+      phone: requestedPhone,
+      status: "SUSPENDED",
+      phoneVerificationStatus: "PENDING",
+      phoneVerificationMethod: `MANUAL_${method}`,
+    },
+    verificationMethod: method,
+  };
+}
+
 export async function loginWithGoogle(input: {
   idToken: string;
   phone?: string;
