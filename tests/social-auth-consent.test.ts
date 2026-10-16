@@ -129,4 +129,41 @@ const invalidGoogleConsent = googleAuthSchema.safeParse({
 });
 assert.equal(invalidGoogleConsent.success, false, "Google auth must reject an explicit false consent value");
 
+const googleManualSms = googleAuthSchema.safeParse({
+  idToken: "x".repeat(24),
+  phone: "+919876543210",
+  termsAccepted: true,
+  termsVersion: "2026-10-13",
+  manualVerification: true,
+  manualVerificationMethod: "SMS",
+});
+assert.equal(googleManualSms.success, true, "Google sign-up must allow requesting manual SMS phone verification without a Firebase phone token");
+
+const googleManualCall = googleAuthSchema.safeParse({
+  idToken: "x".repeat(24),
+  phone: "+919876543210",
+  termsAccepted: true,
+  termsVersion: "2026-10-13",
+  manualVerification: true,
+  manualVerificationMethod: "CALL",
+});
+assert.equal(googleManualCall.success, true, "Google sign-up must allow requesting manual call phone verification without a Firebase phone token");
+
+const googleManualWithoutMethod = googleAuthSchema.safeParse({
+  idToken: "x".repeat(24),
+  phone: "+919876543210",
+  termsAccepted: true,
+  termsVersion: "2026-10-13",
+  manualVerification: true,
+});
+assert.equal(googleManualWithoutMethod.success, false, "Google manual verification must require SMS or CALL");
+
+const googleManualWithoutConsent = googleAuthSchema.safeParse({
+  idToken: "x".repeat(24),
+  phone: "+919876543210",
+  manualVerification: true,
+  manualVerificationMethod: "SMS",
+});
+assert.equal(googleManualWithoutConsent.success, false, "Google manual account creation must require explicit terms consent");
+
 console.log("Social auth consent schema regression checks passed");
