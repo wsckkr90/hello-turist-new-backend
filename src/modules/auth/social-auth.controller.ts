@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   loginWithGoogle,
   registerUserWithPhone,
+  requestGoogleManualPhoneVerification,
 } from "./social-auth.service";
 
 export const registerWithPhoneSchema = z.object({
@@ -42,6 +43,31 @@ export const googleAuthSchema = z.object({
   // Required only when this Google identity creates a new account.
   termsAccepted: z.literal(true).optional(),
   termsVersion: z.string().trim().min(1).max(40).optional(),
+  manualVerification: z.boolean().optional().default(false),
+  manualVerificationMethod: z.enum(["SMS", "CALL"]).optional(),
+}).superRefine((value, ctx) => {
+  if (!value.manualVerification) return;
+  if (!value.phone) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["phone"],
+      message: "Enter a mobile number for manual verification.",
+    });
+  }
+  if (!value.manualVerificationMethod) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["manualVerificationMethod"],
+      message: "Choose SMS or CALL for manual phone verification.",
+    });
+  }
+  if (value.termsAccepted !== true || !value.termsVersion?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["termsAccepted"],
+      message: "Accept the registration terms before creating a Google account.",
+    });
+  }
 });
 
 function sendError(res: Response, req: Request, status: number, code: string, message: string) {
@@ -104,6 +130,22 @@ export async function googleAuth(req: Request, res: Response) {
   }
 
   try {
+    if (parsed.data.manualVerification) {
+      const result = await requestGoogleManualPhoneVerification({
+        idToken: parsed.data.idToken,
+        phone: parsed.data.phone!,
+        manualVerificationMethod: parsed.data.manualVerificationMethod!,
+        termsAccepted: true,
+        termsVersion: parsed.data.termsVersion!,
+      });
+      return res.status(201).json({
+        success: true,
+        data: result,
+        error: null,
+        requestId: req.requestId,
+      });
+    }
+
     const result = await loginWithGoogle(parsed.data);
     return res.status(200).json({
       success: true,
@@ -117,6 +159,7 @@ export async function googleAuth(req: Request, res: Response) {
       if (error.message === "TERMS_CONSENT_REQUIRED") return sendError(res, req, 400, error.message, "Accept the terms before creating your account");
       if (error.message === "GOOGLE_PHONE_REQUIRED" || error.message === "GOOGLE_PHONE_VERIFICATION_REQUIRED") return sendError(res, req, 400, error.message, "Verify your mobile number before creating your Google account");
       if (error.message === "PHONE_ALREADY_EXISTS") return sendError(res, req, 409, error.message, "Phone number is already registered to another account");
+      if (error.message === "EMAIL_ALREADY_EXISTS") return sendError(res, req, 409, error.message, "This Google email already belongs to an account. Please sign in to that account instead.");
       if (error.message === "GOOGLE_ACCOUNT_ALREADY_LINKED") return sendError(res, req, 409, error.message, "Google account is already linked to another account");
       if (error.message === "PHONE_MISMATCH") return sendError(res, req, 401, error.message, "Verified phone number does not match the account phone number");
       if (error.message === "FIREBASE_PHONE_NUMBER_MISSING") return sendError(res, req, 401, error.message, "A verified phone number is required");
