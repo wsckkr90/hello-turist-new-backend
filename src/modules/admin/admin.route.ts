@@ -9,7 +9,7 @@ import { getVerificationRequestById, getVerificationRequests } from "./verificat
 import { getPeople, getPersonById } from "./people.controller";
 import { getBrandingController, updateBrandingController } from "./branding.controller";
 import { getAdminHomeBannerController, updateHomeBannerController } from "../home-content/home-content.controller";
-import { getOperationalRides, getOperationalRideById, assignOperationalRideController, cancelOperationalRideController, interruptOperationalRideController, recoverOperationalRideController } from "./ride-operations.controller";
+import { getOperationalRides, getOperationalRideById, assignOperationalRideController, assignOperationalGuideController, cancelOperationalRideController, interruptOperationalRideController, recoverOperationalRideController } from "./ride-operations.controller";
 import { listEmergencyAdmin, getEmergencyAdmin, acknowledgeEmergencyAdminController, escalateEmergencyAdminController, resolveEmergencyAdminController, assignResponderAdmin, responderStatusAdmin } from "./emergency.controller";
 import { getRidePricingController, updateRidePricingController } from "./pricing.controller";
 import { listAdminPaymentsController, refundAdminPaymentController, createDriverPayoutController } from "./finance.controller";
@@ -60,6 +60,7 @@ router.patch("/pricing/ride", ...admin, requirePermission("pricing.manage"), adm
 router.get("/rides", ...admin, requirePermission("rides.read"), getOperationalRides);
 router.get("/rides/:id", ...admin, requirePermission("rides.read"), getOperationalRideById);
 router.post("/rides/:id/assign", ...admin, requirePermission("rides.manage"), adminMutationLimit, idempotencyMiddleware(), assignOperationalRideController);
+router.post("/rides/:id/assign-guide", ...admin, requirePermission("rides.manage"), adminMutationLimit, idempotencyMiddleware(), assignOperationalGuideController);
 router.post("/rides/:id/cancel", ...admin, requirePermission("rides.manage"), adminMutationLimit, idempotencyMiddleware(), cancelOperationalRideController);
 router.post("/rides/:id/interrupt", ...admin, requirePermission("rides.manage"), adminMutationLimit, idempotencyMiddleware(), interruptOperationalRideController);
 router.post("/rides/:id/recover", ...admin, requirePermission("rides.manage"), adminMutationLimit, idempotencyMiddleware(), recoverOperationalRideController);
