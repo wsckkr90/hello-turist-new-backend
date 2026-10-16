@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import { prisma } from "../../core/prisma";
 import { notifyUser } from "../notification/notification.service";
 import { scheduleGuideRetry } from "./auto-guide-dispatch.service";
@@ -14,11 +13,20 @@ async function requireApprovedGuide(userId: string) {
 async function requireRideMember(userId: string, rideId: string) {
   const ride = await prisma.ride.findUnique({
     where: { id: rideId },
-    select: { id: true, riderId: true, serviceType: true, status: true, assignments: { select: { driverId: true, status: true } } },
+    select: {
+      id: true,
+      riderId: true,
+      serviceType: true,
+      status: true,
+      assignments: { select: { driverId: true, status: true } },
+      guideAssignments: { select: { guideId: true, status: true } },
+    },
   });
   if (!ride) throw new Error("RIDE_NOT_FOUND");
   const admin = await prisma.userRoleAssignment.findUnique({ where: { userId_role: { userId, role: "ADMIN" } }, select: { id: true } });
-  if (!admin && ride.riderId !== userId && !ride.assignments.some((a) => a.driverId === userId && ["OFFERED", "ACCEPTED"].includes(a.status))) throw new Error("RIDE_ACCESS_DENIED");
+  const isDriver = ride.assignments.some((a) => a.driverId === userId && ["OFFERED", "ACCEPTED"].includes(a.status));
+  const isGuide = ride.guideAssignments.some((a) => a.guideId === userId && ["OFFERED", "ACCEPTED"].includes(a.status));
+  if (!admin && ride.riderId !== userId && !isDriver && !isGuide) throw new Error("RIDE_ACCESS_DENIED");
   return ride;
 }
 
