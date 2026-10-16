@@ -70,6 +70,22 @@ assert.equal(
   "Manual registration must explicitly choose SMS or CALL"
 );
 
+const invalidManualUsername = registerWithPhoneSchema.safeParse({
+  name: "Manual Rider",
+  username: "invalid username",
+  password: "StrongPassword123",
+  phone: "+919876543214",
+  termsAccepted: true,
+  termsVersion: "2026-10-13",
+  manualVerification: true,
+  manualVerificationMethod: "SMS",
+});
+assert.equal(
+  invalidManualUsername.success,
+  false,
+  "Manual registration must reject usernames containing spaces"
+);
+
 const standardRegistrationWithoutToken = registerWithPhoneSchema.safeParse({
   name: "Standard Rider",
   username: "standard_rider_missing_token",
