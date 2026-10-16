@@ -22,6 +22,58 @@ const phoneWithConsent = registerWithPhoneSchema.safeParse({
 });
 assert.equal(phoneWithConsent.success, true, "Phone registration should accept explicit terms consent");
 
+const manualSmsRegistration = registerWithPhoneSchema.safeParse({
+  ...validPhoneRegistration,
+  termsAccepted: true,
+  termsVersion: "2026-10-13",
+  manualVerification: true,
+  manualVerificationMethod: "SMS",
+});
+assert.equal(
+  manualSmsRegistration.success,
+  true,
+  "Manual account creation must accept the SMS verification-request flow without an OTP token"
+);
+
+const manualCallRegistration = registerWithPhoneSchema.safeParse({
+  ...validPhoneRegistration,
+  termsAccepted: true,
+  termsVersion: "2026-10-13",
+  manualVerification: true,
+  manualVerificationMethod: "CALL",
+});
+assert.equal(
+  manualCallRegistration.success,
+  true,
+  "Manual account creation must accept the Call verification-request flow without an OTP token"
+);
+
+const manualRequestWithoutMethod = registerWithPhoneSchema.safeParse({
+  ...validPhoneRegistration,
+  termsAccepted: true,
+  termsVersion: "2026-10-13",
+  manualVerification: true,
+});
+assert.equal(
+  manualRequestWithoutMethod.success,
+  false,
+  "Manual account creation must specify SMS or CALL"
+);
+
+const invalidUsernameRegistration = registerWithPhoneSchema.safeParse({
+  ...validPhoneRegistration,
+  username: "not a valid username",
+  termsAccepted: true,
+  termsVersion: "2026-10-13",
+  manualVerification: true,
+  manualVerificationMethod: "SMS",
+});
+assert.equal(
+  invalidUsernameRegistration.success,
+  false,
+  "The API must reject usernames containing spaces instead of silently creating a malformed account"
+);
+
 const existingGoogleLogin = googleAuthSchema.safeParse({
   idToken: "x".repeat(24),
 });
@@ -51,4 +103,4 @@ const invalidGoogleConsent = googleAuthSchema.safeParse({
 });
 assert.equal(invalidGoogleConsent.success, false, "Google auth must reject an explicit false consent value");
 
-console.log("Social auth consent schema regression checks passed");
+console.log("Social auth consent and manual-verification schema regression checks passed");
