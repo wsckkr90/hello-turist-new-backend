@@ -14,7 +14,25 @@ export const registerWithPhoneSchema = z.object({
   termsAccepted: z.literal(true),
   termsVersion: z.string().trim().min(1).max(40).default("2026-10-13"),
   phone: z.string().trim().min(8).max(20),
-  idToken: z.string().trim().min(20),
+  idToken: z.string().trim().min(20).optional(),
+  manualVerification: z.boolean().optional().default(false),
+  manualVerificationMethod: z.enum(["SMS", "CALL"]).optional(),
+}).superRefine((value, ctx) => {
+  if (value.manualVerification) {
+    if (!value.manualVerificationMethod) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["manualVerificationMethod"],
+        message: "Choose SMS or CALL for manual phone verification.",
+      });
+    }
+  } else if (!value.idToken) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["idToken"],
+      message: "A verified Firebase phone token is required.",
+    });
+  }
 });
 
 export const googleAuthSchema = z.object({
