@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { listOperationalRides, getOperationalRide, assignOperationalRide, cancelOperationalRide, interruptOperationalRide, recoverOperationalRide } from "./ride-operations.service";
+import { listOperationalRides, getOperationalRide, assignOperationalRide, assignOperationalGuide, cancelOperationalRide, interruptOperationalRide, recoverOperationalRide } from "./ride-operations.service";
 import { writeAuditLog } from "./audit.service";
 
 export async function getOperationalRides(req: Request, res: Response) {
@@ -28,8 +28,41 @@ export async function assignOperationalRideController(req: Request, res: Respons
     return res.json({ success: true, data, error: null, requestId: req.requestId });
   } catch (e) {
     const message = e instanceof Error ? e.message : "INTERNAL_SERVER_ERROR";
-    const status = ["RIDE_NOT_FOUND", "DRIVER_NOT_VERIFIED", "INVALID_RIDE_STATE"].includes(message) ? 409 : 500;
+    const status = message === "RIDE_NOT_FOUND" ? 404 : ["DRIVER_NOT_VERIFIED", "DRIVER_NOT_AVAILABLE", "DRIVER_NOT_REQUIRED", "INVALID_RIDE_STATE"].includes(message) ? 409 : 500;
     return res.status(status).json({ success: false, error: { code: message, message }, requestId: req.requestId });
+  }
+}
+
+export async function assignOperationalGuideController(req: Request, res: Response) {
+  const rideId = typeof req.params.id === "string" ? req.params.id : "";
+  const guideId = typeof req.body?.guideId === "string" ? req.body.guideId : "";
+  if (!guideId) {
+    return res.status(400).json({
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: "guideId is required" },
+      requestId: req.requestId,
+    });
+  }
+  try {
+    const data = await assignOperationalGuide(req.user!.id, rideId, guideId);
+    return res.status(201).json({ success: true, data, error: null, requestId: req.requestId });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "INTERNAL_SERVER_ERROR";
+    const conflictCodes = [
+      "RIDE_NOT_FOUND",
+      "GUIDE_NOT_REQUIRED",
+      "GUIDE_NOT_AVAILABLE",
+      "GUIDE_NOT_VERIFIED",
+      "GUIDE_ASSIGNMENT_EXISTS",
+      "INVALID_RIDE_STATE",
+      "RIDE_ALREADY_HAS_GUIDE",
+    ];
+    const status = message === "RIDE_NOT_FOUND" ? 404 : conflictCodes.includes(message) ? 409 : 500;
+    return res.status(status).json({
+      success: false,
+      error: { code: message, message },
+      requestId: req.requestId,
+    });
   }
 }
 
