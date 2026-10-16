@@ -21,7 +21,20 @@ export async function listPeople(params: { page: number; limit: number; role?: P
       u.phone_verification_status AS "phoneVerificationStatus", u.phone_verified_at AS "phoneVerifiedAt",
       (NULLIF(BTRIM(u.phone), '') IS NOT NULL) AS "hasPhone",
       dp.profile_image_key AS "driverProfileImageKey", gp.profile_image_key AS "guideProfileImageKey",
-      COALESCE(dp.is_available, false) AS "driverAvailable", COALESCE(gp.is_available, false) AS "guideAvailable",
+      (
+        COALESCE(dp.is_available, false)
+        AND NOT EXISTS (
+          SELECT 1 FROM "ride_assignments" ra
+          WHERE ra.driver_id = u.id AND ra.status::text IN ('OFFERED', 'ACCEPTED')
+        )
+      ) AS "driverAvailable",
+      (
+        COALESCE(gp.is_available, false)
+        AND NOT EXISTS (
+          SELECT 1 FROM "guide_assignments" ga
+          WHERE ga.guide_id = u.id AND ga.status::text IN ('OFFERED', 'ACCEPTED')
+        )
+      ) AS "guideAvailable",
       COALESCE(json_agg(json_build_object('role', r.role, 'verificationStatus', r.verification_status)) FILTER (WHERE r.id IS NOT NULL), '[]') AS roles
     FROM "users" u LEFT JOIN "user_roles" r ON r.user_id = u.id LEFT JOIN "driver_profiles" dp ON dp.user_id = u.id LEFT JOIN "guide_profiles" gp ON gp.user_id = u.id
     WHERE (${role}::text IS NULL OR r.role::text = ${role})
@@ -46,7 +59,20 @@ export async function getPerson(id: string) {
       u.phone_verification_status AS "phoneVerificationStatus", u.phone_verified_at AS "phoneVerifiedAt",
       (NULLIF(BTRIM(u.phone), '') IS NOT NULL) AS "hasPhone",
       dp.profile_image_key AS "driverProfileImageKey", gp.profile_image_key AS "guideProfileImageKey",
-      COALESCE(dp.is_available, false) AS "driverAvailable", COALESCE(gp.is_available, false) AS "guideAvailable",
+      (
+        COALESCE(dp.is_available, false)
+        AND NOT EXISTS (
+          SELECT 1 FROM "ride_assignments" ra
+          WHERE ra.driver_id = u.id AND ra.status::text IN ('OFFERED', 'ACCEPTED')
+        )
+      ) AS "driverAvailable",
+      (
+        COALESCE(gp.is_available, false)
+        AND NOT EXISTS (
+          SELECT 1 FROM "guide_assignments" ga
+          WHERE ga.guide_id = u.id AND ga.status::text IN ('OFFERED', 'ACCEPTED')
+        )
+      ) AS "guideAvailable",
       COALESCE(json_agg(json_build_object('role', r.role, 'verificationStatus', r.verification_status, 'createdAt', r.created_at)) FILTER (WHERE r.id IS NOT NULL), '[]') AS roles
     FROM "users" u LEFT JOIN "user_roles" r ON r.user_id = u.id LEFT JOIN "driver_profiles" dp ON dp.user_id = u.id LEFT JOIN "guide_profiles" gp ON gp.user_id = u.id WHERE u.id = ${id}::uuid AND r.role::text = ANY(ARRAY['RIDER','DRIVER','GUIDE']) GROUP BY u.id, dp.profile_image_key, gp.profile_image_key, dp.is_available, gp.is_available
   `);
