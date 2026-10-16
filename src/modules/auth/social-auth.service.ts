@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { prisma } from "../../core/prisma";
 import { verifyFirebaseIdToken } from "../../config/firebase-admin";
 import { registerUser } from "./auth.service";
+import { createAccountVerificationRequest } from "./account-verification.service";
 
 function generateRefreshToken() {
   return crypto.randomBytes(64).toString("hex");
@@ -141,12 +142,60 @@ export async function registerUserWithPhone(input: {
   email?: string;
   password: string;
   phone: string;
-  idToken: string;
+  idToken?: string;
+  manualVerification: boolean;
+  manualVerificationMethod?: "SMS" | "CALL";
   termsAccepted: true;
   termsVersion: string;
 }) {
   const requestedPhone = validatePhone(input.phone);
-  if (!input.idToken.trim()) throw new Error("INVALID_FIREBASE_ID_TOKEN");
+
+  if (input.manualVerification) {
+    const method = input.manualVerificationMethod;
+    if (method !== "SMS" && method !== "CALL") {
+      throw new Error("MANUAL_VERIFICATION_METHOD_REQUIRED");
+    }
+
+    const existingPhone = await findUserByPhone(requestedPhone);
+    if (existingPhone) throw new Error("PHONE_ALREADY_EXISTS");
+
+    const user = await registerUser({
+      name: input.name,
+      username: input.username,
+      email: input.email,
+      password: input.password,
+      termsAccepted: input.termsAccepted,
+      termsVersion: input.termsVersion,
+    });
+
+    try {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          phone: requestedPhone,
+          status: "SUSPENDED",
+          phoneVerificationStatus: "PENDING",
+          phoneVerificationMethod: `MANUAL_${method}`,
+        },
+      });
+      await createAccountVerificationRequest(user.id, method);
+    } catch (error) {
+      // Do not leave a half-created account if the manual-verification request
+      // could not be persisted.
+      await prisma.user.delete({ where: { id: user.id } }).catch(() => undefined);
+      throw error;
+    }
+
+    return {
+      ...user,
+      phone: requestedPhone,
+      status: "SUSPENDED",
+      phoneVerificationStatus: "PENDING",
+      phoneVerificationMethod: `MANUAL_${method}`,
+    };
+  }
+
+  if (!input.idToken?.trim()) throw new Error("INVALID_FIREBASE_ID_TOKEN");
 
   const decoded = await verifyFirebaseIdToken(input.idToken.trim());
   const firebaseUid = decoded.uid;

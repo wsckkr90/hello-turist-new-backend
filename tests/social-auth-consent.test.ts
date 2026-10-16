@@ -20,7 +20,85 @@ const phoneWithConsent = registerWithPhoneSchema.safeParse({
   termsAccepted: true,
   termsVersion: "2026-10-13",
 });
+
 assert.equal(phoneWithConsent.success, true, "Phone registration should accept explicit terms consent");
+
+const manualSmsRegistration = registerWithPhoneSchema.safeParse({
+  name: "Manual Rider",
+  username: "manual_rider_qa",
+  password: "StrongPassword123",
+  phone: "+919876543210",
+  termsAccepted: true,
+  termsVersion: "2026-10-13",
+  manualVerification: true,
+  manualVerificationMethod: "SMS",
+});
+assert.equal(
+  manualSmsRegistration.success,
+  true,
+  "Manual SMS registration should not require a Firebase phone token"
+);
+
+const manualCallRegistration = registerWithPhoneSchema.safeParse({
+  name: "Manual Rider",
+  username: "manual_rider_call_qa",
+  password: "StrongPassword123",
+  phone: "+919876543211",
+  termsAccepted: true,
+  termsVersion: "2026-10-13",
+  manualVerification: true,
+  manualVerificationMethod: "CALL",
+});
+assert.equal(
+  manualCallRegistration.success,
+  true,
+  "Manual call registration should not require a Firebase phone token"
+);
+
+const manualRegistrationWithoutMethod = registerWithPhoneSchema.safeParse({
+  name: "Manual Rider",
+  username: "manual_rider_missing_method",
+  password: "StrongPassword123",
+  phone: "+919876543212",
+  termsAccepted: true,
+  termsVersion: "2026-10-13",
+  manualVerification: true,
+});
+assert.equal(
+  manualRegistrationWithoutMethod.success,
+  false,
+  "Manual registration must explicitly choose SMS or CALL"
+);
+
+const invalidManualUsername = registerWithPhoneSchema.safeParse({
+  name: "Manual Rider",
+  username: "invalid username",
+  password: "StrongPassword123",
+  phone: "+919876543214",
+  termsAccepted: true,
+  termsVersion: "2026-10-13",
+  manualVerification: true,
+  manualVerificationMethod: "SMS",
+});
+assert.equal(
+  invalidManualUsername.success,
+  false,
+  "Manual registration must reject usernames containing spaces"
+);
+
+const standardRegistrationWithoutToken = registerWithPhoneSchema.safeParse({
+  name: "Standard Rider",
+  username: "standard_rider_missing_token",
+  password: "StrongPassword123",
+  phone: "+919876543213",
+  termsAccepted: true,
+  termsVersion: "2026-10-13",
+});
+assert.equal(
+  standardRegistrationWithoutToken.success,
+  false,
+  "Standard registration must still require a verified Firebase token"
+);
 
 const existingGoogleLogin = googleAuthSchema.safeParse({
   idToken: "x".repeat(24),
