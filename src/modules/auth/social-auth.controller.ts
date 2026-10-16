@@ -50,7 +50,22 @@ function sendError(res: Response, req: Request, status: number, code: string, me
 export async function registerWithPhone(req: Request, res: Response) {
   const parsed = registerWithPhoneSchema.safeParse(req.body);
   if (!parsed.success) {
-    return sendError(res, req, 400, "VALIDATION_ERROR", "Name, username, password and mobile number are required");
+    const firstIssue = parsed.error.issues[0];
+    const field = String(firstIssue?.path[0] ?? "");
+    const messages: Record<string, string> = {
+      name: "Enter your full name (2–120 characters).",
+      username: "Username must be 3–80 characters and use only letters, numbers, underscores, dots or hyphens.",
+      email: "Enter a valid email address or leave it blank.",
+      password: "Password must be between 8 and 128 characters.",
+      termsAccepted: "Accept the Terms & Conditions and Privacy Policy before creating an account.",
+      termsVersion: "The registration terms version is invalid.",
+      phone: "Enter a valid mobile number, including a country code when needed.",
+      idToken: "Verify your phone first, or choose the SMS/Call manual verification option.",
+      manualVerificationMethod: "Choose SMS or Call for manual verification.",
+    };
+    const message = messages[field] ??
+      "Registration details are invalid. Check your name, username, email, password, phone and verification method.";
+    return sendError(res, req, 400, "VALIDATION_ERROR", message);
   }
 
   try {
