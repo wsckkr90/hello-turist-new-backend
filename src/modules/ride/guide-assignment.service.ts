@@ -24,24 +24,115 @@ async function requireRideMember(userId: string, rideId: string) {
 
 export async function searchAndOfferGuide(userId: string, rideId: string, guideId: string) {
   const ride = await requireRideMember(userId, rideId);
-  const admin = await prisma.userRoleAssignment.findUnique({ where: { userId_role: { userId, role: "ADMIN" } }, select: { id: true } });
-  if (!admin && ride.riderId !== userId) throw new Error("RIDE_ACCESS_DENIED");
   if (ride.serviceType === "RIDE_ONLY") throw new Error("GUIDE_NOT_REQUIRED");
-  const guideRole = await prisma.userRoleAssignment.findUnique({ where: { userId_role: { userId: guideId, role: "GUIDE" } }, select: { verificationStatus: true } });
-  const guide = await prisma.guideProfile.findUnique({ where: { userId: guideId }, select: { id: true, isAvailable: true } });
-  if (!guideRole || !["APPROVED", "VERIFIED"].includes(guideRole.verificationStatus) || !guide || !guide.isAvailable) throw new Error("GUIDE_NOT_AVAILABLE");
-  const assignment = await prisma.$transaction(async (tx) => {
-    const existing = await tx.guideAssignment.findUnique({ where: { rideId_guideId: { rideId, guideId } }, select: { id: true, status: true } });
-    if (existing && existing.status !== "REJECTED" && existing.status !== "EXPIRED") throw new Error("GUIDE_ASSIGNMENT_EXISTS");
-    const a = existing
-      ? await tx.guideAssignment.update({ where: { id: existing.id }, data: { status: "OFFERED", assignedAt: new Date(), acceptedAt: null, rejectedAt: null } })
-      : await tx.guideAssignment.create({ data: { id: crypto.randomUUID(), rideId, guideId, status: "OFFERED", updatedAt: new Date() } });
-    await tx.rideEvent.create({ data: { rideId, actorUserId: userId, type: "DRIVER_ASSIGNED", payload: { role: "GUIDE", guideId, assignmentId: a.id } } });
-    return a;
+  if (!["REQUESTED", "SEARCHING", "ASSIGNED"].includes(ride.status)) {
+    throw new Error("INVALID_RIDE_STATE");
+  }
+
+  const admin = await prisma.userRoleAssignment.findUnique({
+    where: { userId_role: { userId, role: "ADMIN" } },
+    select: { id: true },
   });
-  void notifyUser(guideId, "New guide assignment", "You have a new guide assignment. Please accept or reject it.", { destination: "RIDE", notification_type: "RIDE", rideId, assignmentId: assignment.id, status: assignment.status }).catch(() => undefined);
-  void notifyUser(ride.riderId, "Guide assigned", "A guide has been offered for your trip.", { destination: "RIDE", notification_type: "RIDE", rideId, guideId, status: assignment.status }).catch(() => undefined);
-  return assignment;
+  if (!admin && ride.riderId !== userId) throw new Error("RIDE_ACCESS_DENIED");
+
+  const [guideRole, guide, guideUser] = await Promise.all([
+    prisma.userRoleAssignment.findUnique({
+      where: { userId_role: { userId: guideId, role: "GUIDE" } },
+      select: { verificationStatus: true },
+    }),
+    prisma.guideProfile.findUnique({
+      where: { userId: guideId },
+      select: { id: true, isAvailable: true },
+    }),
+    prisma.user.findUnique({ where: { id: guideId }, select: { status: true } }),
+  ]);
+  if (!guideRole || !["APPROVED", "VERIFIED"].includes(guideRole.verificationStatus) ||
+      !guide || !guide.isAvailable || guideUser?.status !== "ACTIVE") {
+    throw new Error("GUIDE_NOT_AVAILABLE");
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    const currentRide = await tx.ride.findUnique({
+      where: { id: rideId },
+      select: { id: true, riderId: true, serviceType: true, status: true },
+    });
+    if (!currentRide) throw new Error("RIDE_NOT_FOUND");
+    if (currentRide.serviceType === "RIDE_ONLY") throw new Error("GUIDE_NOT_REQUIRED");
+    if (!["REQUESTED", "SEARCHING", "ASSIGNED"].includes(currentRide.status)) {
+      throw new Error("INVALID_RIDE_STATE");
+    }
+
+    const existingForSelectedGuide = await tx.guideAssignment.findUnique({
+      where: { rideId_guideId: { rideId, guideId } },
+      select: { id: true, status: true },
+    });
+    if (existingForSelectedGuide && ["OFFERED", "ACCEPTED"].includes(existingForSelectedGuide.status)) {
+      throw new Error("GUIDE_ASSIGNMENT_EXISTS");
+    }
+
+    const [currentUser, currentProfile, busyElsewhere] = await Promise.all([
+      tx.user.findUnique({ where: { id: guideId }, select: { status: true } }),
+      tx.guideProfile.findUnique({ where: { userId: guideId }, select: { isAvailable: true } }),
+      tx.guideAssignment.findFirst({
+        where: { guideId, status: { in: ["OFFERED", "ACCEPTED"] }, rideId: { not: rideId } },
+        select: { id: true },
+      }),
+    ]);
+    if (currentUser?.status !== "ACTIVE" || !currentProfile?.isAvailable || busyElsewhere) {
+      throw new Error("GUIDE_NOT_AVAILABLE");
+    }
+
+    const previousAssignments = await tx.guideAssignment.findMany({
+      where: { rideId, status: { in: ["OFFERED", "ACCEPTED"] } },
+      select: { id: true, guideId: true },
+    });
+    await tx.guideAssignment.updateMany({
+      where: { rideId, status: { in: ["OFFERED", "ACCEPTED"] } },
+      data: { status: "EXPIRED", rejectedAt: new Date() },
+    });
+
+    const assignment = existingForSelectedGuide
+      ? await tx.guideAssignment.update({
+          where: { id: existingForSelectedGuide.id },
+          data: { status: "OFFERED", assignedAt: new Date(), acceptedAt: null, rejectedAt: null, updatedAt: new Date() },
+        })
+      : await tx.guideAssignment.create({
+          data: { rideId, guideId, status: "OFFERED", updatedAt: new Date() },
+        });
+
+    await tx.rideEvent.create({
+      data: {
+        rideId,
+        actorUserId: userId,
+        type: "DRIVER_ASSIGNED",
+        payload: {
+          role: "GUIDE",
+          guideId,
+          assignmentId: assignment.id,
+          dispatch: "ADMIN",
+          replacedGuideIds: previousAssignments.map((item) => item.guideId),
+        },
+      },
+    });
+    return {
+      assignment,
+      previousGuideIds: [...new Set(previousAssignments.map((item) => item.guideId))],
+    };
+  }, { isolationLevel: "Serializable", maxWait: 5_000, timeout: 10_000 });
+
+  for (const previousGuideId of result.previousGuideIds) {
+    if (previousGuideId === guideId) continue;
+    void notifyUser(previousGuideId, "Guide assignment updated", "An administrator changed the guide assignment for this trip.", {
+      destination: "RIDE", notification_type: "RIDE", rideId, status: "EXPIRED",
+    }).catch(() => undefined);
+  }
+  void notifyUser(guideId, "New guide assignment", "An administrator offered you this trip. Please accept or reject it.", {
+    destination: "RIDE", notification_type: "RIDE", rideId, assignmentId: result.assignment.id, status: result.assignment.status,
+  }).catch(() => undefined);
+  void notifyUser(ride.riderId, "Guide assigned", "A guide has been offered for your trip. The app will update when the guide responds.", {
+    destination: "RIDE", notification_type: "RIDE", rideId, guideId, assignmentId: result.assignment.id, status: result.assignment.status,
+  }).catch(() => undefined);
+  return result.assignment;
 }
 
 export async function listGuideAssignments(userId: string, rideId: string) {
